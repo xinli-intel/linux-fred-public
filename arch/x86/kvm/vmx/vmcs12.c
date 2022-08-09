@@ -73,6 +73,7 @@ const unsigned short vmcs12_field_offsets[] = {
 	FIELD(PAGE_FAULT_ERROR_CODE_MATCH, page_fault_error_code_match),
 	FIELD(CR3_TARGET_COUNT, cr3_target_count),
 	FIELD(VM_EXIT_CONTROLS, vm_exit_controls),
+	FIELD(SECONDARY_VM_EXIT_CONTROLS, secondary_vm_exit_controls),
 	FIELD(VM_EXIT_MSR_STORE_COUNT, vm_exit_msr_store_count),
 	FIELD(VM_EXIT_MSR_LOAD_COUNT, vm_exit_msr_load_count),
 	FIELD(VM_ENTRY_CONTROLS, vm_entry_controls),
