@@ -1242,10 +1242,12 @@ static bool is_bitwise_subset(u64 superset, u64 subset, u64 mask)
 #define VMX_BASIC_FEATURES_MASK			\
 	(VMX_BASIC_DUAL_MONITOR_TREATMENT |	\
 	 VMX_BASIC_INOUT |			\
-	 VMX_BASIC_TRUE_CTLS)
+	 VMX_BASIC_TRUE_CTLS |			\
+	 VMX_BASIC_NESTED_EXCEPTION)
 
-#define VMX_BASIC_RESERVED_BITS			\
-	(GENMASK_ULL(63, 56) | GENMASK_ULL(47, 45) | BIT_ULL(31))
+#define VMX_BASIC_RESERVED_BITS				\
+	(GENMASK_ULL(63, 59) | GENMASK_ULL(57, 56) |	\
+	 GENMASK_ULL(47, 45) | BIT_ULL(31))
 
 static int vmx_restore_vmx_basic(struct vcpu_vmx *vmx, u64 data)
 {
@@ -6991,7 +6993,8 @@ static void nested_vmx_setup_entry_ctls(struct vmcs_config *vmcs_conf,
 #ifdef CONFIG_X86_64
 		VM_ENTRY_IA32E_MODE |
 #endif
-		VM_ENTRY_LOAD_IA32_PAT | VM_ENTRY_LOAD_BNDCFGS;
+		VM_ENTRY_LOAD_IA32_PAT | VM_ENTRY_LOAD_BNDCFGS |
+		VM_ENTRY_LOAD_IA32_FRED;
 	msrs->entry_ctls_high |=
 		(VM_ENTRY_ALWAYSON_WITHOUT_TRUE_MSR | VM_ENTRY_LOAD_IA32_EFER |
 		 VM_ENTRY_LOAD_IA32_PERF_GLOBAL_CTRL);
@@ -7150,6 +7153,9 @@ static void nested_vmx_setup_basic(struct nested_vmx_msrs *msrs)
 
 	if (cpu_has_vmx_basic_inout())
 		msrs->basic |= VMX_BASIC_INOUT;
+
+	if (kvm_cpu_cap_has(X86_FEATURE_FRED))
+		msrs->basic |= VMX_BASIC_NESTED_EXCEPTION;
 }
 
 static void nested_vmx_setup_cr_fixed(struct nested_vmx_msrs *msrs)
