@@ -7988,6 +7988,9 @@ void vmx_vcpu_after_set_cpuid(struct kvm_vcpu *vcpu)
 	kvm_governed_feature_check_and_set(vcpu, X86_FEATURE_LAM);
 	kvm_governed_feature_check_and_set(vcpu, X86_FEATURE_FRED);
 
+	if (!guest_can_use(vcpu, X86_FEATURE_FRED))
+		vcpu->arch.cr4_guest_rsvd_bits |= X86_CR4_FRED;
+
 	vmx_setup_uret_msrs(vmx);
 
 	if (cpu_has_secondary_exec_ctrls())
