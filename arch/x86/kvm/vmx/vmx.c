@@ -1420,6 +1420,24 @@ static void vmx_write_guest_kernel_gs_base(struct vcpu_vmx *vmx, u64 data)
 	preempt_enable();
 	vmx->msr_guest_kernel_gs_base = data;
 }
+
+static u64 vmx_read_guest_fred_rsp0(struct vcpu_vmx *vmx)
+{
+	preempt_disable();
+	if (vmx->guest_state_loaded)
+		vmx->msr_guest_fred_rsp0 = read_msr(MSR_IA32_FRED_RSP0);
+	preempt_enable();
+	return vmx->msr_guest_fred_rsp0;
+}
+
+static void vmx_write_guest_fred_rsp0(struct vcpu_vmx *vmx, u64 data)
+{
+	preempt_disable();
+	if (vmx->guest_state_loaded)
+		wrmsrl(MSR_IA32_FRED_RSP0, data);
+	preempt_enable();
+	vmx->msr_guest_fred_rsp0 = data;
+}
 #endif
 
 void vmx_vcpu_load_vmcs(struct kvm_vcpu *vcpu, int cpu,
@@ -2019,6 +2037,33 @@ static int vmx_get_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 	case MSR_KERNEL_GS_BASE:
 		msr_info->data = vmx_read_guest_kernel_gs_base(vmx);
 		break;
+	case MSR_IA32_FRED_RSP0:
+		msr_info->data = vmx_read_guest_fred_rsp0(vmx);
+		break;
+	case MSR_IA32_FRED_RSP1:
+		msr_info->data = vmcs_read64(GUEST_IA32_FRED_RSP1);
+		break;
+	case MSR_IA32_FRED_RSP2:
+		msr_info->data = vmcs_read64(GUEST_IA32_FRED_RSP2);
+		break;
+	case MSR_IA32_FRED_RSP3:
+		msr_info->data = vmcs_read64(GUEST_IA32_FRED_RSP3);
+		break;
+	case MSR_IA32_FRED_STKLVLS:
+		msr_info->data = vmcs_read64(GUEST_IA32_FRED_STKLVLS);
+		break;
+	case MSR_IA32_FRED_SSP1:
+		msr_info->data = vmcs_read64(GUEST_IA32_FRED_SSP1);
+		break;
+	case MSR_IA32_FRED_SSP2:
+		msr_info->data = vmcs_read64(GUEST_IA32_FRED_SSP2);
+		break;
+	case MSR_IA32_FRED_SSP3:
+		msr_info->data = vmcs_read64(GUEST_IA32_FRED_SSP3);
+		break;
+	case MSR_IA32_FRED_CONFIG:
+		msr_info->data = vmcs_read64(GUEST_IA32_FRED_CONFIG);
+		break;
 #endif
 	case MSR_EFER:
 		return kvm_get_msr_common(vcpu, msr_info);
@@ -2225,6 +2270,33 @@ static int vmx_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 			vcpu->arch.xfd_no_write_intercept = true;
 			vmx_update_exception_bitmap(vcpu);
 		}
+		break;
+	case MSR_IA32_FRED_RSP0:
+		vmx_write_guest_fred_rsp0(vmx, data);
+		break;
+	case MSR_IA32_FRED_RSP1:
+		vmcs_write64(GUEST_IA32_FRED_RSP1, data);
+		break;
+	case MSR_IA32_FRED_RSP2:
+		vmcs_write64(GUEST_IA32_FRED_RSP2, data);
+		break;
+	case MSR_IA32_FRED_RSP3:
+		vmcs_write64(GUEST_IA32_FRED_RSP3, data);
+		break;
+	case MSR_IA32_FRED_STKLVLS:
+		vmcs_write64(GUEST_IA32_FRED_STKLVLS, data);
+		break;
+	case MSR_IA32_FRED_SSP1:
+		vmcs_write64(GUEST_IA32_FRED_SSP1, data);
+		break;
+	case MSR_IA32_FRED_SSP2:
+		vmcs_write64(GUEST_IA32_FRED_SSP2, data);
+		break;
+	case MSR_IA32_FRED_SSP3:
+		vmcs_write64(GUEST_IA32_FRED_SSP3, data);
+		break;
+	case MSR_IA32_FRED_CONFIG:
+		vmcs_write64(GUEST_IA32_FRED_CONFIG, data);
 		break;
 #endif
 	case MSR_IA32_SYSENTER_CS:
