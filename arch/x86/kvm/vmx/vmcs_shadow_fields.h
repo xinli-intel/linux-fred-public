@@ -74,6 +74,10 @@ SHADOW_FIELD_RW(HOST_GS_BASE, host_gs_base, true)
 /* 64-bit */
 SHADOW_FIELD_RO(GUEST_PHYSICAL_ADDRESS, guest_physical_address, true)
 SHADOW_FIELD_RO(GUEST_PHYSICAL_ADDRESS_HIGH, guest_physical_address, true)
+SHADOW_FIELD_RO(ORIGINAL_EVENT_DATA, original_event_data, kvm_cpu_cap_has(X86_FEATURE_FRED))
+SHADOW_FIELD_RO(ORIGINAL_EVENT_DATA_HIGH, original_event_data, kvm_cpu_cap_has(X86_FEATURE_FRED))
+SHADOW_FIELD_RW(INJECTED_EVENT_DATA, injected_event_data, kvm_cpu_cap_has(X86_FEATURE_FRED))
+SHADOW_FIELD_RW(INJECTED_EVENT_DATA_HIGH, injected_event_data, kvm_cpu_cap_has(X86_FEATURE_FRED))
 
 #undef SHADOW_FIELD_RO
 #undef SHADOW_FIELD_RW
