@@ -36,6 +36,7 @@
 #include <asm/fpu/api.h>
 #include <asm/fpu/sched.h>
 #include <asm/fpu/xstate.h>
+#include <asm/fred.h>
 #include <asm/debugreg.h>
 #include <asm/nmi.h>
 #include <asm/tlbflush.h>
@@ -100,6 +101,17 @@ int arch_dup_task_struct(struct task_struct *dst, struct task_struct *src)
 	dst->thread.fpu.fpstate = NULL;
 
 	return 0;
+}
+
+/*
+ * thread_info.user_pt_regs never changes after initialization unless FRED
+ * is enabled.
+ */
+void arch_init_user_pt_regs(struct task_struct *tsk)
+{
+	unsigned long top_of_stack = (unsigned long)task_stack_page(tsk) + THREAD_SIZE;
+	top_of_stack -= EVENT_FRAME_SIZE;
+	tsk->thread_info.user_pt_regs = (struct pt_regs *)top_of_stack;
 }
 
 #ifdef CONFIG_X86_64

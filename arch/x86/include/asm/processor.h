@@ -615,19 +615,12 @@ static __always_inline void prefetchw(const void *x)
 			  "m" (*(const char *)x));
 }
 
+#ifdef CONFIG_X86_32
 #define TOP_OF_INIT_STACK ((unsigned long)&init_stack + sizeof(init_stack) - \
 			   TOP_OF_KERNEL_STACK_PADDING)
 
 #define task_top_of_stack(task) ((unsigned long)(task_pt_regs(task) + 1))
 
-#define task_pt_regs(task) \
-({									\
-	unsigned long __ptr = (unsigned long)task_stack_page(task);	\
-	__ptr += THREAD_SIZE - TOP_OF_KERNEL_STACK_PADDING;		\
-	((struct pt_regs *)__ptr) - 1;					\
-})
-
-#ifdef CONFIG_X86_32
 #define INIT_THREAD  {							  \
 	.sp0			= TOP_OF_INIT_STACK,			  \
 	.sysenter_cs		= __KERNEL_CS,				  \
@@ -636,6 +629,10 @@ static __always_inline void prefetchw(const void *x)
 #define KSTK_ESP(task)		(task_pt_regs(task)->sp)
 
 #else
+#define TOP_OF_INIT_STACK ((unsigned long)&init_stack + sizeof(init_stack))
+
+#define task_top_of_stack(task) ((unsigned long)task_stack_page(task) + THREAD_SIZE)
+
 extern unsigned long __end_init_task[];
 
 #define INIT_THREAD {							    \
@@ -645,6 +642,8 @@ extern unsigned long __end_init_task[];
 extern unsigned long KSTK_ESP(struct task_struct *task);
 
 #endif /* CONFIG_X86_64 */
+
+#define task_pt_regs(task) ((task)->thread_info.user_pt_regs)
 
 extern void start_thread(struct pt_regs *regs, unsigned long new_ip,
 					       unsigned long new_sp);

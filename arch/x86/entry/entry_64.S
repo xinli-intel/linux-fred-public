@@ -1485,7 +1485,7 @@ SYM_CODE_START_NOALIGN(rewind_stack_and_make_dead)
 	xorl	%ebp, %ebp
 
 	movq	PER_CPU_VAR(pcpu_hot + X86_top_of_stack), %rax
-	leaq	-PTREGS_SIZE(%rax), %rsp
+	leaq	-EVENT_FRAME_SIZE(%rax), %rsp
 	UNWIND_HINT_REGS
 
 	call	make_task_dead

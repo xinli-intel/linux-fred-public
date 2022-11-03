@@ -94,6 +94,15 @@ static void __used common(void)
 
 	BLANK();
 	DEFINE(PTREGS_SIZE, sizeof(struct pt_regs));
+#ifdef CONFIG_X86_32
+	DEFINE(EVENT_FRAME_SIZE, PTREGS_SIZE + TOP_OF_KERNEL_STACK_PADDING);
+#else
+#ifdef CONFIG_X86_FRED
+	DEFINE(EVENT_FRAME_SIZE, sizeof(struct fred_frame));
+#else
+	DEFINE(EVENT_FRAME_SIZE, PTREGS_SIZE);
+#endif
+#endif
 
 	/* TLB state for the entry code */
 	OFFSET(TLB_STATE_user_pcid_flush_mask, tlb_state, user_pcid_flush_mask);

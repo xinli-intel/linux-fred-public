@@ -1216,7 +1216,7 @@ SYM_CODE_START(rewind_stack_and_make_dead)
 	xorl	%ebp, %ebp
 
 	movl	PER_CPU_VAR(pcpu_hot + X86_top_of_stack), %esi
-	leal	-TOP_OF_KERNEL_STACK_PADDING-PTREGS_SIZE(%esi), %esp
+	leal	-EVENT_FRAME_SIZE(%esi), %esp
 
 	call	make_task_dead
 1:	jmp 1b
