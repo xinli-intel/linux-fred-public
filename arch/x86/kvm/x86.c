@@ -645,7 +645,8 @@ static void kvm_leave_nested(struct kvm_vcpu *vcpu)
 
 static void kvm_multiple_exception(struct kvm_vcpu *vcpu,
 		unsigned nr, bool has_error, u32 error_code,
-	        bool has_payload, unsigned long payload, bool reinject)
+	        bool has_payload, unsigned long payload,
+		bool reinject, bool nested)
 {
 	u32 prev_nr;
 	int class1, class2;
@@ -696,6 +697,13 @@ static void kvm_multiple_exception(struct kvm_vcpu *vcpu,
 			vcpu->arch.exception.pending = true;
 			vcpu->arch.exception.injected = false;
 		}
+
+		vcpu->arch.exception.nested = vcpu->arch.exception.nested ||
+					      (kvm_is_fred_enabled(vcpu) &&
+					       ((reinject && nested) ||
+					        vcpu->arch.nmi_injected ||
+					        vcpu->arch.interrupt.injected));
+
 		vcpu->arch.exception.has_error_code = has_error;
 		vcpu->arch.exception.vector = nr;
 		vcpu->arch.exception.error_code = error_code;
@@ -725,8 +733,28 @@ static void kvm_multiple_exception(struct kvm_vcpu *vcpu,
 		vcpu->arch.exception.injected = false;
 		vcpu->arch.exception.pending = false;
 
+		/*
+		 * A #DF is NOT a nested event per its definition, however per
+		 * FRED spec 5.0 Appendix B, its delivery determines the new
+		 * stack level as is done for events occurring when CPL = 0.
+		 */
+		vcpu->arch.exception.nested = false;
+
 		kvm_queue_exception_e(vcpu, DF_VECTOR, 0);
 	} else {
+		/*
+		 * FRED spec 5.0 Appendix B: delivery of a nested exception
+		 * determines the new stack level as is done for events
+		 * occurring when CPL = 0.
+		 *
+		 * IOW, FRED event delivery of an event encountered in ring 3
+		 * normally uses stack level 0 unconditionally.  However, if
+		 * the event is an exception nested on any earlier event,
+		 * delivery of the nested exception will consult the FRED MSR
+		 * IA32_FRED_STKLVLS to determine which stack level to use.
+		 */
+		vcpu->arch.exception.nested = kvm_is_fred_enabled(vcpu);
+
 		/* replace previous exception with a new one in a hope
 		   that instruction re-execution will regenerate lost
 		   exception */
@@ -736,20 +764,20 @@ static void kvm_multiple_exception(struct kvm_vcpu *vcpu,
 
 void kvm_queue_exception(struct kvm_vcpu *vcpu, unsigned nr)
 {
-	kvm_multiple_exception(vcpu, nr, false, 0, false, 0, false);
+	kvm_multiple_exception(vcpu, nr, false, 0, false, 0, false, false);
 }
 EXPORT_SYMBOL_GPL(kvm_queue_exception);
 
-void kvm_requeue_exception(struct kvm_vcpu *vcpu, unsigned nr)
+void kvm_requeue_exception(struct kvm_vcpu *vcpu, unsigned nr, bool nested)
 {
-	kvm_multiple_exception(vcpu, nr, false, 0, false, 0, true);
+	kvm_multiple_exception(vcpu, nr, false, 0, false, 0, true, nested);
 }
 EXPORT_SYMBOL_GPL(kvm_requeue_exception);
 
 void kvm_queue_exception_p(struct kvm_vcpu *vcpu, unsigned nr,
 			   unsigned long payload)
 {
-	kvm_multiple_exception(vcpu, nr, false, 0, true, payload, false);
+	kvm_multiple_exception(vcpu, nr, false, 0, true, payload, false, false);
 }
 EXPORT_SYMBOL_GPL(kvm_queue_exception_p);
 
@@ -757,7 +785,7 @@ static void kvm_queue_exception_e_p(struct kvm_vcpu *vcpu, unsigned nr,
 				    u32 error_code, unsigned long payload)
 {
 	kvm_multiple_exception(vcpu, nr, true, error_code,
-			       true, payload, false);
+			       true, payload, false, false);
 }
 
 int kvm_complete_insn_gp(struct kvm_vcpu *vcpu, int err)
@@ -829,13 +857,13 @@ void kvm_inject_nmi(struct kvm_vcpu *vcpu)
 
 void kvm_queue_exception_e(struct kvm_vcpu *vcpu, unsigned nr, u32 error_code)
 {
-	kvm_multiple_exception(vcpu, nr, true, error_code, false, 0, false);
+	kvm_multiple_exception(vcpu, nr, true, error_code, false, 0, false, false);
 }
 EXPORT_SYMBOL_GPL(kvm_queue_exception_e);
 
-void kvm_requeue_exception_e(struct kvm_vcpu *vcpu, unsigned nr, u32 error_code)
+void kvm_requeue_exception_e(struct kvm_vcpu *vcpu, unsigned nr, u32 error_code, bool nested)
 {
-	kvm_multiple_exception(vcpu, nr, true, error_code, false, 0, true);
+	kvm_multiple_exception(vcpu, nr, true, error_code, false, 0, true, nested);
 }
 EXPORT_SYMBOL_GPL(kvm_requeue_exception_e);
 
