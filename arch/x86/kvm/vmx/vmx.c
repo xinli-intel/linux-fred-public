@@ -1891,6 +1891,8 @@ static void vmx_inject_exception(struct kvm_vcpu *vcpu)
 				event_data = to_vmx(vcpu)->fred_xfd_event_data;
 
 			vmcs_write64(INJECTED_EVENT_DATA, event_data);
+
+			intr_info |= ex->nested ? INTR_INFO_NESTED_EXCEPTION_MASK : 0;
 		}
 	}
 
@@ -7281,9 +7283,11 @@ static void __vmx_complete_interrupts(struct kvm_vcpu *vcpu, bool vectoring)
 		}
 
 		if (event_id & INTR_INFO_DELIVER_CODE_MASK)
-			kvm_requeue_exception_e(vcpu, vector, vmcs_read32(error_code_field));
+			kvm_requeue_exception_e(vcpu, vector, vmcs_read32(error_code_field),
+						event_id & INTR_INFO_NESTED_EXCEPTION_MASK);
 		else
-			kvm_requeue_exception(vcpu, vector);
+			kvm_requeue_exception(vcpu, vector,
+					      event_id & INTR_INFO_NESTED_EXCEPTION_MASK);
 		break;
 	case INTR_TYPE_SOFT_INTR:
 		vcpu->arch.event_exit_inst_len = vmcs_read32(instr_len_field);
