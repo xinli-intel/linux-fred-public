@@ -680,8 +680,14 @@ static void kvm_multiple_exception(struct kvm_vcpu *vcpu,
 			vcpu->arch.exception.injected = true;
 			if (WARN_ON_ONCE(has_payload)) {
 				/*
-				 * A reinjected event has already
-				 * delivered its payload.
+				 * For a reinjected event, KVM delivers its
+				 * payload through:
+				 *   #PF: save %cr2 into arch.cr2 immediately
+				 *        after VM exits.
+				 *   #DB: save %dr6 into arch.dr6 later in
+				 *        sync_dirty_debug_regs().
+				 *
+				 * For FRED guest, see __vmx_complete_interrupts().
 				 */
 				has_payload = false;
 				payload = 0;
