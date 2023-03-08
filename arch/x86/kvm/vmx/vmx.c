@@ -1871,8 +1871,28 @@ static void vmx_inject_exception(struct kvm_vcpu *vcpu)
 		vmcs_write32(VM_ENTRY_INSTRUCTION_LEN,
 			     vmx->vcpu.arch.event_exit_inst_len);
 		intr_info |= INTR_TYPE_SOFT_EXCEPTION;
-	} else
+	} else {
 		intr_info |= INTR_TYPE_HARD_EXCEPTION;
+
+		if (kvm_is_fred_enabled(vcpu)) {
+			u64 event_data = 0;
+
+			if (is_debug(intr_info))
+				/*
+				 * Compared to DR6, FRED #DB event data saved on
+				 * the stack frame have bits 4 ~ 11 and 16 ~ 31
+				 * inverted, i.e.,
+				 *   fred_db_event_data = dr6 ^ 0xFFFF0FF0UL
+				 */
+				event_data = vcpu->arch.dr6 ^ DR6_RESERVED;
+			else if (is_page_fault(intr_info))
+				event_data = vcpu->arch.cr2;
+			else if (is_nm_fault(intr_info))
+				event_data = to_vmx(vcpu)->fred_xfd_event_data;
+
+			vmcs_write64(INJECTED_EVENT_DATA, event_data);
+		}
+	}
 
 	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD, intr_info);
 
@@ -7082,8 +7102,11 @@ static void handle_nm_fault_irqoff(struct kvm_vcpu *vcpu)
 	 *
 	 * Queuing exception is done in vmx_handle_exit. See comment there.
 	 */
-	if (vcpu->arch.guest_fpu.fpstate->xfd)
+	if (vcpu->arch.guest_fpu.fpstate->xfd) {
 		rdmsrl(MSR_IA32_XFD_ERR, vcpu->arch.guest_fpu.xfd_err);
+		to_vmx(vcpu)->fred_xfd_event_data = vcpu->arch.cr0 & X86_CR0_TS
+			? 0 : vcpu->arch.guest_fpu.xfd_err;
+	}
 }
 
 static void handle_exception_irqoff(struct vcpu_vmx *vmx)
@@ -7199,28 +7222,27 @@ static void vmx_recover_nmi_blocking(struct vcpu_vmx *vmx)
 					      vmx->loaded_vmcs->entry_time));
 }
 
-static void __vmx_complete_interrupts(struct kvm_vcpu *vcpu,
-				      u32 idt_vectoring_info,
-				      int instr_len_field,
-				      int error_code_field)
+static void __vmx_complete_interrupts(struct kvm_vcpu *vcpu, bool vectoring)
 {
-	u8 vector;
-	int type;
-	bool idtv_info_valid;
-
-	idtv_info_valid = idt_vectoring_info & VECTORING_INFO_VALID_MASK;
+	u32 event_id = vectoring ? to_vmx(vcpu)->idt_vectoring_info
+				 : vmcs_read32(VM_ENTRY_INTR_INFO_FIELD);
+	int instr_len_field = vectoring ? VM_EXIT_INSTRUCTION_LEN
+					: VM_ENTRY_INSTRUCTION_LEN;
+	int error_code_field = vectoring ? IDT_VECTORING_ERROR_CODE
+					 : VM_ENTRY_EXCEPTION_ERROR_CODE;
+	int event_data_field = vectoring ? ORIGINAL_EVENT_DATA
+					 : INJECTED_EVENT_DATA;
+	u8 vector = event_id & INTR_INFO_VECTOR_MASK;
+	int type = event_id & INTR_INFO_INTR_TYPE_MASK;
 
 	vcpu->arch.nmi_injected = false;
 	kvm_clear_exception_queue(vcpu);
 	kvm_clear_interrupt_queue(vcpu);
 
-	if (!idtv_info_valid)
+	if (!(event_id & INTR_INFO_VALID_MASK))
 		return;
 
 	kvm_make_request(KVM_REQ_EVENT, vcpu);
-
-	vector = idt_vectoring_info & VECTORING_INFO_VECTOR_MASK;
-	type = idt_vectoring_info & VECTORING_INFO_TYPE_MASK;
 
 	switch (type) {
 	case INTR_TYPE_NMI_INTR:
@@ -7236,10 +7258,31 @@ static void __vmx_complete_interrupts(struct kvm_vcpu *vcpu,
 		vcpu->arch.event_exit_inst_len = vmcs_read32(instr_len_field);
 		fallthrough;
 	case INTR_TYPE_HARD_EXCEPTION:
-		if (idt_vectoring_info & VECTORING_INFO_DELIVER_CODE_MASK) {
-			u32 err = vmcs_read32(error_code_field);
-			kvm_requeue_exception_e(vcpu, vector, err);
-		} else
+		if (kvm_is_fred_enabled(vcpu)) {
+			/* Save event data for being used as injected-event data */
+			u64 event_data = vmcs_read64(event_data_field);
+
+			switch (vector) {
+			case DB_VECTOR:
+				/* %dr6 should be equal to (event_data ^ DR6_RESERVED) */
+				vcpu->arch.dr6 = event_data ^ DR6_RESERVED;
+				break;
+			case NM_VECTOR:
+				to_vmx(vcpu)->fred_xfd_event_data = event_data;
+				break;
+			case PF_VECTOR:
+				/* %cr2 should be equal to event_data */
+				vcpu->arch.cr2 = event_data;
+				break;
+			default:
+				WARN_ON(event_data != 0);
+				break;
+			}
+		}
+
+		if (event_id & INTR_INFO_DELIVER_CODE_MASK)
+			kvm_requeue_exception_e(vcpu, vector, vmcs_read32(error_code_field));
+		else
 			kvm_requeue_exception(vcpu, vector);
 		break;
 	case INTR_TYPE_SOFT_INTR:
@@ -7255,18 +7298,12 @@ static void __vmx_complete_interrupts(struct kvm_vcpu *vcpu,
 
 static void vmx_complete_interrupts(struct vcpu_vmx *vmx)
 {
-	__vmx_complete_interrupts(&vmx->vcpu, vmx->idt_vectoring_info,
-				  VM_EXIT_INSTRUCTION_LEN,
-				  IDT_VECTORING_ERROR_CODE);
+	__vmx_complete_interrupts(&vmx->vcpu, true);
 }
 
 static void vmx_cancel_injection(struct kvm_vcpu *vcpu)
 {
-	__vmx_complete_interrupts(vcpu,
-				  vmcs_read32(VM_ENTRY_INTR_INFO_FIELD),
-				  VM_ENTRY_INSTRUCTION_LEN,
-				  VM_ENTRY_EXCEPTION_ERROR_CODE);
-
+	__vmx_complete_interrupts(vcpu, false);
 	vmcs_write32(VM_ENTRY_INTR_INFO_FIELD, 0);
 }
 
@@ -7382,6 +7419,24 @@ static noinstr void vmx_vcpu_enter_exit(struct kvm_vcpu *vcpu,
 
 	vmx_disable_fb_clear(vmx);
 
+	/*
+	 * %cr2 needs to be saved after a VM exit and restored before a VM
+	 * entry in case a VM exit happens immediately after delivery of a
+	 * guest #PF but before guest reads %cr2.
+	 *
+	 * A FRED guest should read its #PF faulting linear address from
+	 * the event data field in its FRED stack frame instead of %cr2.
+	 * But the FRED 5.0 spec still requires a FRED CPU to update %cr2
+	 * in the normal way, thus %cr2 is still updated even for a FRED
+	 * guest.
+	 *
+	 * Note, an NMI could interrupt KVM:
+	 *   1) after VM exit but before CR2 is saved.
+	 *   2) after CR2 is restored but before VM entry.
+	 * And a #PF could happen durng NMI handlng, which overwrites %cr2.
+	 * Thus exc_nmi() should save and restore %cr2 upon entering and
+	 * before leaving to make sure %cr2 not corrupted.
+	 */
 	if (vcpu->arch.cr2 != native_read_cr2())
 		native_write_cr2(vcpu->arch.cr2);
 
