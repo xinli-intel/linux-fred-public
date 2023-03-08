@@ -266,6 +266,7 @@ struct vcpu_vmx {
 	u32                   exit_intr_info;
 	u32                   idt_vectoring_info;
 	ulong                 rflags;
+	u64                   fred_xfd_event_data;
 
 	/*
 	 * User return MSRs are always emulated when enabled in the guest, but
