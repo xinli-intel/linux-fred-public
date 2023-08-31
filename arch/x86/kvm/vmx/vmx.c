@@ -2623,12 +2623,15 @@ static int setup_vmcs_config(struct vmcs_config *vmcs_conf,
 	struct {
 		u32 entry_control;
 		u32 exit_control;
+		u64 secondary_exit_control;
 	} const vmcs_entry_exit_pairs[] = {
 		{ VM_ENTRY_LOAD_IA32_PERF_GLOBAL_CTRL,	VM_EXIT_LOAD_IA32_PERF_GLOBAL_CTRL },
 		{ VM_ENTRY_LOAD_IA32_PAT,		VM_EXIT_LOAD_IA32_PAT },
 		{ VM_ENTRY_LOAD_IA32_EFER,		VM_EXIT_LOAD_IA32_EFER },
 		{ VM_ENTRY_LOAD_BNDCFGS,		VM_EXIT_CLEAR_BNDCFGS },
 		{ VM_ENTRY_LOAD_IA32_RTIT_CTL,		VM_EXIT_CLEAR_IA32_RTIT_CTL },
+		{ VM_ENTRY_LOAD_IA32_FRED,		VM_EXIT_ACTIVATE_SECONDARY_CONTROLS,
+			SECONDARY_VM_EXIT_SAVE_IA32_FRED | SECONDARY_VM_EXIT_LOAD_IA32_FRED},
 	};
 
 	memset(vmcs_conf, 0, sizeof(*vmcs_conf));
@@ -2725,18 +2728,22 @@ static int setup_vmcs_config(struct vmcs_config *vmcs_conf,
 	for (i = 0; i < ARRAY_SIZE(vmcs_entry_exit_pairs); i++) {
 		u32 n_ctrl = vmcs_entry_exit_pairs[i].entry_control;
 		u32 x_ctrl = vmcs_entry_exit_pairs[i].exit_control;
+		u64 secondary_x_ctrl = vmcs_entry_exit_pairs[i].secondary_exit_control;
 
-		if (!(_vmentry_control & n_ctrl) == !(_vmexit_control & x_ctrl))
+		if (!(_vmentry_control & n_ctrl) == !(_vmexit_control & x_ctrl) &&
+		    (!secondary_x_ctrl || !(_vmentry_control & n_ctrl) == !(_secondary_vmexit_control & secondary_x_ctrl)))
 			continue;
 
-		pr_warn_once("Inconsistent VM-Entry/VM-Exit pair, entry = %x, exit = %x\n",
-			     _vmentry_control & n_ctrl, _vmexit_control & x_ctrl);
+		pr_warn_once("Inconsistent VM-Entry/VM-Exit pair, entry = 0x%x, exit = 0x%x, secondary_exit = 0x%llx\n",
+			     _vmentry_control & n_ctrl, _vmexit_control & x_ctrl,
+			     _secondary_vmexit_control & secondary_x_ctrl);
 
 		if (error_on_inconsistent_vmcs_config)
 			return -EIO;
 
 		_vmentry_control &= ~n_ctrl;
 		_vmexit_control &= ~x_ctrl;
+		_secondary_vmexit_control &= ~secondary_x_ctrl;
 	}
 
 	rdmsrl(MSR_IA32_VMX_BASIC, basic_msr);
