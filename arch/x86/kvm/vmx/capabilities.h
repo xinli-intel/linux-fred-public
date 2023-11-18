@@ -400,6 +400,16 @@ static inline bool vmx_pebs_supported(void)
 	return boot_cpu_has(X86_FEATURE_PEBS) && kvm_pmu_cap.pebs_ept;
 }
 
+static inline bool cpu_has_vmx_fred(void)
+{
+	return boot_cpu_has(X86_FEATURE_FRED) &&
+		(vmcs_config.basic & VMX_BASIC_NESTED_EXCEPTION) &&
+		(vmcs_config.vmexit_ctrl & VM_EXIT_ACTIVATE_SECONDARY_CONTROLS) &&
+		(vmcs_config.secondary_vmexit_ctrl & SECONDARY_VM_EXIT_SAVE_IA32_FRED) &&
+		(vmcs_config.secondary_vmexit_ctrl & SECONDARY_VM_EXIT_LOAD_IA32_FRED) &&
+		(vmcs_config.vmentry_ctrl & VM_ENTRY_LOAD_IA32_FRED);
+}
+
 static inline bool cpu_has_notify_vmexit(void)
 {
 	return vmcs_config.cpu_based_2nd_exec_ctrl &
