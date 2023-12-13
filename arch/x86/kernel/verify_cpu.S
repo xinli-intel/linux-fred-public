@@ -29,6 +29,7 @@
  */
 
 #include <asm/cpufeatures.h>
+#include <asm/featuremasks.h>
 #include <asm/msr-index.h>
 
 SYM_FUNC_START_LOCAL(verify_cpu)
