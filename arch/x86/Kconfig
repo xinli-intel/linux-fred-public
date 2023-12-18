@@ -130,7 +130,7 @@ config X86
 	select ARCH_SUPPORTS_AUTOFDO_CLANG
 	select ARCH_SUPPORTS_PROPELLER_CLANG    if X86_64
 	select ARCH_USE_BUILTIN_BSWAP
-	select ARCH_USE_CMPXCHG_LOCKREF		if X86_CMPXCHG64
+	select ARCH_USE_CMPXCHG_LOCKREF		if X86_REQUIRED_FEATURE_CX8
 	select ARCH_USE_MEMTEST
 	select ARCH_USE_QUEUED_RWLOCKS
 	select ARCH_USE_QUEUED_SPINLOCKS
@@ -3196,5 +3196,7 @@ config HAVE_ATOMIC_IOMAP
 	depends on X86_32
 
 source "arch/x86/kvm/Kconfig"
+
+source "arch/x86/Kconfig.cpufeatures"
 
 source "arch/x86/Kconfig.assembler"
