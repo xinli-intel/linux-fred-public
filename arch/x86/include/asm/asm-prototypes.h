@@ -15,7 +15,7 @@
 #include <asm/fred.h>
 #include <asm/gsseg.h>
 
-#ifndef CONFIG_X86_CMPXCHG64
+#ifndef CONFIG_X86_REQUIRED_FEATURE_CX8
 extern void cmpxchg8b_emu(void);
 #endif
 
