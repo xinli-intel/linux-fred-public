@@ -126,6 +126,7 @@ static inline int syscall_get_arch(struct task_struct *task)
 		? AUDIT_ARCH_I386 : AUDIT_ARCH_X86_64;
 }
 
+__attribute__((no_callee_saved_registers))
 bool do_syscall_64(struct pt_regs *regs, int nr);
 
 #endif	/* CONFIG_X86_32 */

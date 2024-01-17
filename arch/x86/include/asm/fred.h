@@ -65,9 +65,12 @@ void asm_fred_entrypoint_user(void);
 void asm_fred_entrypoint_kernel(void);
 void asm_fred_entry_from_kvm(struct fred_ss);
 
-__visible void fred_entry_from_user(struct pt_regs *regs);
-__visible void fred_entry_from_kernel(struct pt_regs *regs);
-__visible void __fred_entry_from_kvm(struct pt_regs *regs);
+__visible noinstr __attribute__((no_callee_saved_registers))
+void fred_entry_from_user(struct pt_regs *regs);
+__visible noinstr __attribute__((no_callee_saved_registers))
+void fred_entry_from_kernel(struct pt_regs *regs);
+__visible noinstr __attribute__((no_callee_saved_registers))
+void __fred_entry_from_kvm(struct pt_regs *regs);
 
 /* Can be called from noinstr code, thus __always_inline */
 static __always_inline void fred_entry_from_kvm(unsigned int type, unsigned int vector)

@@ -18,7 +18,8 @@
 #define FRED_SYSCALL			1
 #define FRED_SYSENTER			2
 
-static noinstr void fred_bad_type(struct pt_regs *regs, unsigned long error_code)
+static noinstr __attribute__((no_callee_saved_registers))
+void fred_bad_type(struct pt_regs *regs, unsigned long error_code)
 {
 	irqentry_state_t irq_state = irqentry_nmi_enter(regs);
 
@@ -51,7 +52,8 @@ static noinstr void fred_bad_type(struct pt_regs *regs, unsigned long error_code
 	irqentry_nmi_exit(regs, irq_state);
 }
 
-static noinstr void fred_intx(struct pt_regs *regs)
+static noinstr __attribute__((no_callee_saved_registers))
+void fred_intx(struct pt_regs *regs)
 {
 	switch (regs->fred_ss.vector) {
 	/* Opcode 0xcd, 0x3, NOT INT3 (opcode 0xcc) */
@@ -73,7 +75,8 @@ static noinstr void fred_intx(struct pt_regs *regs)
 	}
 }
 
-static __always_inline void fred_other(struct pt_regs *regs)
+static __always_inline __attribute__((no_callee_saved_registers))
+void fred_other(struct pt_regs *regs)
 {
 	/* The compiler can fold these conditions into a single test */
 	if (likely(regs->fred_ss.vector == FRED_SYSCALL && regs->fred_ss.lm)) {
@@ -132,7 +135,8 @@ void __init fred_install_sysvec(unsigned int sysvec, idtentry_t handler)
 		 sysvec_table[sysvec - FIRST_SYSTEM_VECTOR] = handler;
 }
 
-static noinstr void fred_handle_spurious_interrupt(struct pt_regs *regs)
+static noinstr __attribute__((no_callee_saved_registers))
+void fred_handle_spurious_interrupt(struct pt_regs *regs)
 {
 	spurious_interrupt(regs, regs->fred_ss.vector);
 }
@@ -153,7 +157,8 @@ void __init fred_complete_exception_setup(void)
 	fred_setup_done = true;
 }
 
-static noinstr void fred_extint(struct pt_regs *regs)
+static noinstr __attribute__((no_callee_saved_registers))
+void fred_extint(struct pt_regs *regs)
 {
 	unsigned int vector = regs->fred_ss.vector;
 	unsigned int index = array_index_nospec(vector - FIRST_SYSTEM_VECTOR,
@@ -174,7 +179,8 @@ static noinstr void fred_extint(struct pt_regs *regs)
 	}
 }
 
-static noinstr void fred_hwexc(struct pt_regs *regs, unsigned long error_code)
+static noinstr __attribute__((no_callee_saved_registers))
+void fred_hwexc(struct pt_regs *regs, unsigned long error_code)
 {
 	/* Optimize for #PF. That's the only exception which matters performance wise */
 	if (likely(regs->fred_ss.vector == X86_TRAP_PF))
@@ -209,7 +215,8 @@ static noinstr void fred_hwexc(struct pt_regs *regs, unsigned long error_code)
 
 }
 
-static noinstr void fred_swexc(struct pt_regs *regs, unsigned long error_code)
+static noinstr __attribute__((no_callee_saved_registers))
+void fred_swexc(struct pt_regs *regs, unsigned long error_code)
 {
 	switch (regs->fred_ss.vector) {
 	case X86_TRAP_BP: return exc_int3(regs);
@@ -218,7 +225,8 @@ static noinstr void fred_swexc(struct pt_regs *regs, unsigned long error_code)
 	}
 }
 
-__visible noinstr void fred_entry_from_user(struct pt_regs *regs)
+__visible noinstr __attribute__((no_callee_saved_registers))
+void fred_entry_from_user(struct pt_regs *regs)
 {
 	unsigned long error_code = regs->orig_ax;
 
@@ -250,7 +258,8 @@ __visible noinstr void fred_entry_from_user(struct pt_regs *regs)
 	return fred_bad_type(regs, error_code);
 }
 
-__visible noinstr void fred_entry_from_kernel(struct pt_regs *regs)
+__visible noinstr __attribute__((no_callee_saved_registers))
+void fred_entry_from_kernel(struct pt_regs *regs)
 {
 	unsigned long error_code = regs->orig_ax;
 
@@ -279,7 +288,8 @@ __visible noinstr void fred_entry_from_kernel(struct pt_regs *regs)
 }
 
 #if IS_ENABLED(CONFIG_KVM_INTEL)
-__visible noinstr void __fred_entry_from_kvm(struct pt_regs *regs)
+__visible noinstr __attribute__((no_callee_saved_registers))
+void __fred_entry_from_kvm(struct pt_regs *regs)
 {
 	switch (regs->fred_ss.type) {
 	case EVENT_TYPE_EXTINT:

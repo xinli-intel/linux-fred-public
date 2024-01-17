@@ -13,7 +13,8 @@
 
 #include <asm/irq_stack.h>
 
-typedef void (*idtentry_t)(struct pt_regs *regs);
+typedef __attribute__((no_callee_saved_registers))
+	void (*idtentry_t)(struct pt_regs *regs);
 
 /**
  * DECLARE_IDTENTRY - Declare functions for simple IDT entry points
@@ -34,8 +35,10 @@ typedef void (*idtentry_t)(struct pt_regs *regs);
 #define DECLARE_IDTENTRY(vector, func)					\
 	asmlinkage void asm_##func(void);				\
 	asmlinkage void xen_asm_##func(void);				\
+	__attribute__((no_callee_saved_registers))			\
 	void fred_##func(struct pt_regs *regs);				\
-	__visible void func(struct pt_regs *regs)
+	__visible __attribute__((no_callee_saved_registers))		\
+	void func(struct pt_regs *regs)
 
 /**
  * DEFINE_IDTENTRY - Emit code for simple IDT entry points
@@ -53,7 +56,8 @@ typedef void (*idtentry_t)(struct pt_regs *regs);
 #define DEFINE_IDTENTRY(func)						\
 static __always_inline void __##func(struct pt_regs *regs);		\
 									\
-__visible noinstr void func(struct pt_regs *regs)			\
+__visible noinstr __attribute__((no_callee_saved_registers))		\
+void func(struct pt_regs *regs)						\
 {									\
 	irqentry_state_t state = irqentry_enter(regs);			\
 									\
@@ -86,7 +90,8 @@ static __always_inline void __##func(struct pt_regs *regs)
 #define DECLARE_IDTENTRY_ERRORCODE(vector, func)			\
 	asmlinkage void asm_##func(void);				\
 	asmlinkage void xen_asm_##func(void);				\
-	__visible void func(struct pt_regs *regs, unsigned long error_code)
+	__visible __attribute__((no_callee_saved_registers))		\
+	void func(struct pt_regs *regs, unsigned long error_code)
 
 /**
  * DEFINE_IDTENTRY_ERRORCODE - Emit code for simple IDT entry points
@@ -99,8 +104,8 @@ static __always_inline void __##func(struct pt_regs *regs)
 static __always_inline void __##func(struct pt_regs *regs,		\
 				     unsigned long error_code);		\
 									\
-__visible noinstr void func(struct pt_regs *regs,			\
-			    unsigned long error_code)			\
+__visible noinstr __attribute__((no_callee_saved_registers))		\
+void func(struct pt_regs *regs, unsigned long error_code)		\
 {									\
 	irqentry_state_t state = irqentry_enter(regs);			\
 									\
@@ -139,7 +144,8 @@ static __always_inline void __##func(struct pt_regs *regs,		\
  * is required before the enter/exit() helpers are invoked.
  */
 #define DEFINE_IDTENTRY_RAW(func)					\
-__visible noinstr void func(struct pt_regs *regs)
+__visible noinstr __attribute__((no_callee_saved_registers))		\
+void func(struct pt_regs *regs)
 
 /**
  * DEFINE_FREDENTRY_RAW - Emit code for raw FRED entry points
@@ -150,7 +156,8 @@ __visible noinstr void func(struct pt_regs *regs)
  * See @DEFINE_IDTENTRY_RAW for further details.
  */
 #define DEFINE_FREDENTRY_RAW(func)					\
-noinstr void fred_##func(struct pt_regs *regs)
+noinstr __attribute__((no_callee_saved_registers))			\
+void fred_##func(struct pt_regs *regs)
 
 /**
  * DECLARE_IDTENTRY_RAW_ERRORCODE - Declare functions for raw IDT entry points
@@ -178,7 +185,8 @@ noinstr void fred_##func(struct pt_regs *regs)
  * is required before the enter/exit() helpers are invoked.
  */
 #define DEFINE_IDTENTRY_RAW_ERRORCODE(func)				\
-__visible noinstr void func(struct pt_regs *regs, unsigned long error_code)
+__visible noinstr __attribute__((no_callee_saved_registers))		\
+void func(struct pt_regs *regs, unsigned long error_code)
 
 /**
  * DECLARE_IDTENTRY_IRQ - Declare functions for device interrupt IDT entry
@@ -206,8 +214,8 @@ __visible noinstr void func(struct pt_regs *regs, unsigned long error_code)
 #define DEFINE_IDTENTRY_IRQ(func)					\
 static void __##func(struct pt_regs *regs, u32 vector);			\
 									\
-__visible noinstr void func(struct pt_regs *regs,			\
-			    unsigned long error_code)			\
+__visible noinstr __attribute__((no_callee_saved_registers))		\
+void func(struct pt_regs *regs, unsigned long error_code)		\
 {									\
 	irqentry_state_t state = irqentry_enter(regs);			\
 	u32 vector = (u32)(u8)error_code;				\
@@ -254,7 +262,8 @@ static __always_inline void instr_##func(struct pt_regs *regs)		\
 	run_sysvec_on_irqstack_cond(__##func, regs);			\
 }									\
 									\
-__visible noinstr void func(struct pt_regs *regs)			\
+__visible noinstr __attribute__((no_callee_saved_registers))		\
+void func(struct pt_regs *regs)						\
 {									\
 	irqentry_state_t state = irqentry_enter(regs);			\
 									\
@@ -264,6 +273,7 @@ __visible noinstr void func(struct pt_regs *regs)			\
 	irqentry_exit(regs, state);					\
 }									\
 									\
+__attribute__((no_callee_saved_registers))				\
 void fred_##func(struct pt_regs *regs)					\
 {									\
 	instr_##func (regs);						\
@@ -293,7 +303,8 @@ static __always_inline void instr_##func(struct pt_regs *regs)		\
 	__irq_exit_raw();						\
 }									\
 									\
-__visible noinstr void func(struct pt_regs *regs)			\
+__visible noinstr __attribute__((no_callee_saved_registers))		\
+void func(struct pt_regs *regs)						\
 {									\
 	irqentry_state_t state = irqentry_enter(regs);			\
 									\
@@ -303,6 +314,7 @@ __visible noinstr void func(struct pt_regs *regs)			\
 	irqentry_exit(regs, state);					\
 }									\
 									\
+__attribute__((no_callee_saved_registers))				\
 void fred_##func(struct pt_regs *regs)					\
 {									\
 	instr_##func (regs);						\
@@ -337,7 +349,8 @@ static __always_inline void __##func(struct pt_regs *regs)
  */
 #define DECLARE_IDTENTRY_IST(vector, func)				\
 	DECLARE_IDTENTRY_RAW(vector, func);				\
-	__visible void noist_##func(struct pt_regs *regs)
+	__visible __attribute__((no_callee_saved_registers))		\
+	void noist_##func(struct pt_regs *regs)
 
 /**
  * DECLARE_IDTENTRY_VC - Declare functions for the VC entry point
@@ -349,8 +362,11 @@ static __always_inline void __##func(struct pt_regs *regs)
  */
 #define DECLARE_IDTENTRY_VC(vector, func)				\
 	DECLARE_IDTENTRY_RAW_ERRORCODE(vector, func);			\
-	__visible noinstr void kernel_##func(struct pt_regs *regs, unsigned long error_code);	\
-	__visible noinstr void   user_##func(struct pt_regs *regs, unsigned long error_code)
+	__visible noinstr __attribute__((no_callee_saved_registers))	\
+	void kernel_##func(struct pt_regs *regs,			\
+			   unsigned long error_code);			\
+	__visible noinstr __attribute__((no_callee_saved_registers))	\
+	void user_##func(struct pt_regs *regs, unsigned long error_code)
 
 /**
  * DEFINE_IDTENTRY_IST - Emit code for IST entry points
@@ -424,9 +440,10 @@ static __always_inline void __##func(struct pt_regs *regs)
  */
 #define DECLARE_IDTENTRY_DF(vector, func)				\
 	asmlinkage void asm_##func(void);				\
-	__visible void func(struct pt_regs *regs,			\
-			    unsigned long error_code,			\
-			    unsigned long address)
+	__visible __attribute__((no_callee_saved_registers))		\
+	void func(struct pt_regs *regs,					\
+		  unsigned long error_code,				\
+		  unsigned long address)
 
 /**
  * DEFINE_IDTENTRY_DF - Emit code for double fault on 32bit
@@ -436,9 +453,10 @@ static __always_inline void __##func(struct pt_regs *regs)
  * cr2 in the address argument.
  */
 #define DEFINE_IDTENTRY_DF(func)					\
-__visible noinstr void func(struct pt_regs *regs,			\
-			    unsigned long error_code,			\
-			    unsigned long address)
+__visible noinstr __attribute__((no_callee_saved_registers))		\
+void func(struct pt_regs *regs,						\
+	  unsigned long error_code,					\
+	  unsigned long address)
 
 #endif	/* !CONFIG_X86_64 */
 

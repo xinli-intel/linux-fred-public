@@ -73,7 +73,8 @@ static __always_inline bool do_syscall_x32(struct pt_regs *regs, int nr)
 }
 
 /* Returns true to return using SYSRET, or false to use IRET */
-__visible noinstr bool do_syscall_64(struct pt_regs *regs, int nr)
+__visible noinstr __attribute__((no_callee_saved_registers))
+bool do_syscall_64(struct pt_regs *regs, int nr)
 {
 	add_random_kstack_offset();
 	nr = syscall_enter_from_user_mode(regs, nr);
