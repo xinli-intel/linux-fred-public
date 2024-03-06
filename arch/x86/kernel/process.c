@@ -102,6 +102,25 @@ int arch_dup_task_struct(struct task_struct *dst, struct task_struct *src)
 	return 0;
 }
 
+/*
+ * Initialize thread_info.user_pt_regs for IDT event delivery.
+ *
+ * For IDT user level event delivery, a pt_regs structure is pushed by both
+ * hardware and software and always resides at a fixed offset from top of
+ * current task kernel stack, thus thread_info.user_pt_regs is a per-task
+ * constant and NEVER changes after initialization.
+ *
+ * Note: thread_info.user_pt_regs of the init task is initialized at build
+ * time.
+ */
+void arch_init_user_pt_regs(struct task_struct *tsk)
+{
+	unsigned long top_of_stack = (unsigned long)task_stack_page(tsk) + THREAD_SIZE;
+
+	top_of_stack -= TOP_OF_KERNEL_STACK_PADDING;
+	tsk->thread_info.user_pt_regs = (struct pt_regs *)top_of_stack - 1;
+}
+
 #ifdef CONFIG_X86_64
 void arch_release_task_struct(struct task_struct *tsk)
 {
