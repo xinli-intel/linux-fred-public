@@ -72,7 +72,7 @@ static inline void update_task_stack(struct task_struct *task)
 #else
 	if (cpu_feature_enabled(X86_FEATURE_FRED)) {
 		/* WRMSRNS is a baseline feature for FRED. */
-		wrmsrns(MSR_IA32_FRED_RSP0, (unsigned long)task_stack_page(task) + THREAD_SIZE);
+		wrmsrns(MSR_IA32_FRED_RSP0, task_top_of_stack(task));
 	} else if (cpu_feature_enabled(X86_FEATURE_XENPV)) {
 		/* Xen PV enters the kernel on the thread stack. */
 		load_sp0(task_top_of_stack(task));
