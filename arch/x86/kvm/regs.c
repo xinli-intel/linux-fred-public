@@ -127,6 +127,7 @@ static void __set_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs)
 	kvm_set_rflags(vcpu, regs->rflags | X86_EFLAGS_FIXED);
 
 	vcpu->arch.exception.pending = false;
+	vcpu->arch.exception.is_nested = false;
 	vcpu->arch.exception_vmexit.pending = false;
 
 	kvm_make_request(KVM_REQ_EVENT, vcpu);

@@ -693,6 +693,7 @@ struct kvm_queued_exception {
 	u32 error_code;
 	unsigned long payload;
 	bool has_payload;
+	bool is_nested;
 };
 
 /*
