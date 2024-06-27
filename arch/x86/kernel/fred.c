@@ -32,6 +32,25 @@ void cpu_init_fred_exceptions(void)
 		FRED_CONFIG_INT_STKLVL(0) |
 		FRED_CONFIG_ENTRYPOINT(asm_fred_entrypoint_user));
 
+	wrmsrns(MSR_IA32_FRED_STKLVLS, 0);
+	wrmsrns(MSR_IA32_FRED_RSP0, 0);
+	wrmsrns(MSR_IA32_FRED_RSP1, 0);
+	wrmsrns(MSR_IA32_FRED_RSP2, 0);
+	wrmsrns(MSR_IA32_FRED_RSP3, 0);
+
+	/* Enable FRED */
+	cr4_set_bits(X86_CR4_FRED);
+	/* Any further IDT use is a bug */
+	idt_invalidate();
+
+	/* Use int $0x80 for 32-bit system calls in FRED mode */
+	setup_clear_cpu_cap(X86_FEATURE_SYSENTER32);
+	setup_clear_cpu_cap(X86_FEATURE_SYSCALL32);
+}
+
+/* Must be called after setup_cpu_entry_areas() */
+void cpu_init_fred_rsps(void)
+{
 	/*
 	 * The purpose of separate stacks for NMI, #DB and #MC *in the kernel*
 	 * (remember that user space faults are always taken on stack level 0)
@@ -43,17 +62,10 @@ void cpu_init_fred_exceptions(void)
 		FRED_STKLVL(X86_TRAP_MC,  FRED_MC_STACK_LEVEL) |
 		FRED_STKLVL(X86_TRAP_DF,  FRED_DF_STACK_LEVEL));
 
+	wrmsrns(MSR_IA32_FRED_RSP0, 0);
+
 	/* The FRED equivalents to IST stacks... */
 	wrmsrns(MSR_IA32_FRED_RSP1, __this_cpu_ist_top_va(DB));
 	wrmsrns(MSR_IA32_FRED_RSP2, __this_cpu_ist_top_va(NMI));
 	wrmsrns(MSR_IA32_FRED_RSP3, __this_cpu_ist_top_va(DF));
-
-	/* Enable FRED */
-	cr4_set_bits(X86_CR4_FRED);
-	/* Any further IDT use is a bug */
-	idt_invalidate();
-
-	/* Use int $0x80 for 32-bit system calls in FRED mode */
-	setup_clear_cpu_cap(X86_FEATURE_SYSENTER32);
-	setup_clear_cpu_cap(X86_FEATURE_SYSCALL32);
 }
