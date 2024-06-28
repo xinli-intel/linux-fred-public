@@ -39,6 +39,7 @@
 #include <asm/coco.h>
 #include <asm/cpu.h>
 #include <asm/efi.h>
+#include <asm/fred.h>
 #include <asm/gart.h>
 #include <asm/hypervisor.h>
 #include <asm/io_apic.h>
@@ -1038,7 +1039,10 @@ void __init setup_arch(char **cmdline_p)
 
 	init_mem_mapping();
 
-	idt_setup_early_pf();
+	if (cpu_feature_enabled(X86_FEATURE_FRED))
+		cpu_init_fred_exceptions();
+	else
+		idt_setup_early_pf();
 
 	/*
 	 * Update mmu_cr4_features (and, indirectly, trampoline_cr4_features)
