@@ -44,18 +44,36 @@ static __always_inline void arch_enter_from_user_mode(struct pt_regs *regs)
 }
 #define arch_enter_from_user_mode arch_enter_from_user_mode
 
+static DEFINE_PER_CPU(unsigned long, ti_work_cnt);
+static DEFINE_PER_CPU(unsigned long, ti_work_cnt_0);
+
 static inline void arch_exit_to_user_mode_prepare(struct pt_regs *regs,
 						  unsigned long ti_work)
 {
-	if (ti_work & _TIF_USER_RETURN_NOTIFY)
-		fire_user_return_notifiers();
 
-	if (unlikely(ti_work & _TIF_IO_BITMAP))
-		tss_update_io_bitmap();
+	this_cpu_inc(ti_work_cnt);
 
-	fpregs_assert_state_consistent();
-	if (unlikely(ti_work & _TIF_NEED_FPU_LOAD))
-		switch_fpu_return();
+	if (ti_work) {
+		if (ti_work & _TIF_USER_RETURN_NOTIFY)
+			fire_user_return_notifiers();
+
+		if (unlikely(ti_work & _TIF_IO_BITMAP))
+			tss_update_io_bitmap();
+
+		fpregs_assert_state_consistent();
+		if (unlikely(ti_work & _TIF_NEED_FPU_LOAD))
+			switch_fpu_return();
+	} else {
+		this_cpu_inc(ti_work_cnt_0);
+	}
+
+	if (this_cpu_read(ti_work_cnt) == 1000000) {
+		pr_info("CPU%d: ti_work_cnt: %lu, ti_work_cnt_0: %lu\n",
+			smp_processor_id(), 1000000UL, this_cpu_read(ti_work_cnt_0));
+
+		this_cpu_write(ti_work_cnt, 0);
+		this_cpu_write(ti_work_cnt_0, 0);
+	}
 
 #ifdef CONFIG_COMPAT
 	/*
