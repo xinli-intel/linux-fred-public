@@ -1,0 +1,32 @@
+#if !defined(HAS_VMCS_FIELD) && !defined(HAS_VMCS_FIELD_RANGE)
+BUILD_BUG_ON(1)
+#endif
+
+#ifndef HAS_VMCS_FIELD
+#define HAS_VMCS_FIELD(x, c)
+#endif
+#ifndef HAS_VMCS_FIELD_RANGE
+#define HAS_VMCS_FIELD_RANGE(x, y, c)
+#endif
+
+HAS_VMCS_FIELD(GUEST_INTR_STATUS,
+	       msrs->secondary_ctls_high & SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY)
+HAS_VMCS_FIELD(GUEST_PML_INDEX,
+	       msrs->secondary_ctls_high & SECONDARY_EXEC_ENABLE_PML)
+HAS_VMCS_FIELD(VMX_PREEMPTION_TIMER_VALUE,
+	       msrs->pinbased_ctls_high & PIN_BASED_VMX_PREEMPTION_TIMER)
+
+HAS_VMCS_FIELD(SECONDARY_VM_EXIT_CONTROLS, nested_vmx_has_fred(msrs))
+HAS_VMCS_FIELD(SECONDARY_VM_EXIT_CONTROLS_HIGH, nested_vmx_has_fred(msrs))
+
+HAS_VMCS_FIELD_RANGE(GUEST_IA32_FRED_CONFIG, GUEST_IA32_FRED_SSP3, nested_vmx_has_fred(msrs))
+HAS_VMCS_FIELD_RANGE(HOST_IA32_FRED_CONFIG, HOST_IA32_FRED_SSP3, nested_vmx_has_fred(msrs))
+
+HAS_VMCS_FIELD(INJECTED_EVENT_DATA, nested_vmx_has_fred(msrs))
+HAS_VMCS_FIELD(INJECTED_EVENT_DATA_HIGH, nested_vmx_has_fred(msrs))
+
+HAS_VMCS_FIELD(ORIGINAL_EVENT_DATA, nested_vmx_has_fred(msrs))
+HAS_VMCS_FIELD(ORIGINAL_EVENT_DATA_HIGH, nested_vmx_has_fred(msrs))
+
+#undef HAS_VMCS_FIELD
+#undef HAS_VMCS_FIELD_RANGE

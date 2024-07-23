@@ -49,6 +49,33 @@ static unsigned long *vmx_bitmap[VMX_BITMAP_NR];
 #define vmx_vmread_bitmap                    (vmx_bitmap[VMX_VMREAD_BITMAP])
 #define vmx_vmwrite_bitmap                   (vmx_bitmap[VMX_VMWRITE_BITMAP])
 
+static bool nested_vmx_has_fred(struct nested_vmx_msrs *msrs)
+{
+	return msrs->basic & VMX_BASIC_NESTED_EXCEPTION &&
+	       msrs->entry_ctls_high & VM_ENTRY_LOAD_IA32_FRED &&
+	       msrs->exit_ctls_high & VM_EXIT_ACTIVATE_SECONDARY_CONTROLS &&
+	       msrs->secondary_exit_ctls & SECONDARY_VM_EXIT_SAVE_IA32_FRED &&
+	       msrs->secondary_exit_ctls & SECONDARY_VM_EXIT_LOAD_IA32_FRED;
+}
+
+static bool has_vmcs_field(struct kvm_vcpu *vcpu, u16 vmcs_field_encoding)
+{
+	struct nested_vmx_msrs *msrs = vcpu ? &to_vmx(vcpu)->nested.msrs
+					    : &vmcs_config.nested;
+
+	switch (vmcs_field_encoding) {
+#define HAS_VMCS_FIELD(x, c)			\
+	case x:					\
+		return c;
+#define HAS_VMCS_FIELD_RANGE(x, y, c)		\
+	case x...y:				\
+		return c;
+#include "vmcs_fields.h"
+	default:
+		return true;
+	}
+}
+
 struct shadow_vmcs_field {
 	u16	encoding;
 	u16	offset;
@@ -5662,7 +5689,7 @@ static int handle_vmread(struct kvm_vcpu *vcpu)
 			return nested_vmx_failInvalid(vcpu);
 
 		offset = get_vmcs12_field_offset(field);
-		if (offset < 0)
+		if (offset < 0 || !has_vmcs_field(vcpu, field))
 			return nested_vmx_fail(vcpu, VMXERR_UNSUPPORTED_VMCS_COMPONENT);
 
 		if (!is_guest_mode(vcpu) && is_vmcs12_ext_field(field))
@@ -5788,7 +5815,7 @@ static int handle_vmwrite(struct kvm_vcpu *vcpu)
 	field = kvm_register_read(vcpu, (((instr_info) >> 28) & 0xf));
 
 	offset = get_vmcs12_field_offset(field);
-	if (offset < 0)
+	if (offset < 0 || !has_vmcs_field(vcpu, field))
 		return nested_vmx_fail(vcpu, VMXERR_UNSUPPORTED_VMCS_COMPONENT);
 
 	/*
@@ -7043,6 +7070,7 @@ static u64 nested_vmx_calc_vmcs_enum_msr(void)
 	 * the index into vmcs12.
 	 */
 	unsigned int max_idx, idx;
+	u16 field;
 	int i;
 
 	/*
@@ -7056,7 +7084,11 @@ static u64 nested_vmx_calc_vmcs_enum_msr(void)
 		if (!vmcs12_field_offsets[i])
 			continue;
 
-		idx = vmcs_field_index(VMCS12_IDX_TO_ENC(i));
+		field = VMCS12_IDX_TO_ENC(i);
+		if (!has_vmcs_field(NULL, field))
+			continue;
+
+		idx = vmcs_field_index(field);
 		if (idx > max_idx)
 			max_idx = idx;
 	}
