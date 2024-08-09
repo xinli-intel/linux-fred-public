@@ -288,6 +288,53 @@ static bool ex_handler_eretu(const struct exception_table_entry *fixup,
 
 	return ex_handler_default(fixup, regs);
 }
+
+static bool ex_handler_erets(const struct exception_table_entry *fixup,
+			     struct pt_regs *regs, unsigned long error_code)
+{
+	unsigned long *erets_stack_frame;
+
+	erets_stack_frame = (unsigned long *)regs->sp;
+
+	pr_err("ERETS RSP: %04x:%016lx, dumping FRED stack frame:", regs->ss, regs->sp);
+	pr_err("\t\tReserved:\t%016lx", erets_stack_frame[7]);
+	pr_err("\t\tEvent data:\t%016lx", erets_stack_frame[6]);
+	pr_err("\t\tAugmented SS:\t%016lx", erets_stack_frame[5]);
+	pr_err("\t\tRSP:\t\t%016lx", erets_stack_frame[4]);
+	pr_err("\t\tFLAGS:\t\t%016lx", erets_stack_frame[3]);
+	pr_err("\t\tAugmented CS:\t%016lx", erets_stack_frame[2]);
+	pr_err("\t\tRIP:\t\t%016lx", erets_stack_frame[1]);
+	pr_err("\t\tError code:\t%016lx", erets_stack_frame[0]);
+
+	if (regs->ss != (erets_stack_frame[5] & 0xffffUL)) {
+		pr_err("ERETS: SS mismatch, set SS in FRED stack frame to %04x\n", regs->ss);
+		erets_stack_frame[5] = (erets_stack_frame[5] & ~0xffffUL) | regs->ss;
+		return ex_handler_default(fixup, regs);
+	}
+
+	if (regs->cs != (erets_stack_frame[2] & 0xffffUL)) {
+		pr_err("ERETS: CS mismatch, set CS in FRED stack frame to %04x\n", regs->cs);
+		erets_stack_frame[2] = (erets_stack_frame[2] & ~0xffffUL) | regs->cs;
+		return ex_handler_default(fixup, regs);
+	}
+
+	if (erets_stack_frame[2] & ~0x7ffffUL)
+		pr_err("ERETS: augmented CS %016lx has reserved bits set", erets_stack_frame[2]);
+
+	if (!__is_canonical_address(erets_stack_frame[1], boot_cpu_data.x86_virt_bits))
+		pr_err("ERETS: IP %016lx is not canonical", erets_stack_frame[1]);
+
+	if (erets_stack_frame[5] & 0xfff80000UL)
+		pr_err("ERETS: augmented SS %016lx has reserved bits set", erets_stack_frame[5]);
+
+	if ((erets_stack_frame[3] & 2) != 2)
+		pr_err("ERETS: flags %016lx has bit 1 cleared", erets_stack_frame[3]);
+
+	if (erets_stack_frame[3] & ~0x3d7fd7UL)
+		pr_err("ERETS: flags %016lx has reserved bits set", erets_stack_frame[3]);
+
+	return false;
+}
 #endif
 
 int ex_get_fixup_type(unsigned long ip)
@@ -368,6 +415,8 @@ int fixup_exception(struct pt_regs *regs, int trapnr, unsigned long error_code,
 #ifdef CONFIG_X86_FRED
 	case EX_TYPE_ERETU:
 		return ex_handler_eretu(e, regs, error_code);
+	case EX_TYPE_ERETS:
+		return ex_handler_erets(e, regs, error_code);
 #endif
 	}
 	BUG();
