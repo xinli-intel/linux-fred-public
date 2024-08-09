@@ -287,6 +287,82 @@ static bool ex_handler_eretu(const struct exception_table_entry *fixup,
 
 	return ex_handler_default(fixup, regs);
 }
+
+struct fred_stack_frame {
+	unsigned long error_code;
+	unsigned long ip;
+
+	union {
+		/* CS selector */
+		u16		cs;
+		/* The extended 64-bit data slot containing CS */
+		u64		csx;
+		/* The FRED CS extension */
+		struct fred_cs	fred_cs;
+	};
+
+	unsigned long flags;
+	unsigned long sp;
+
+	union {
+		/* SS selector */
+		u16		ss;
+		/* The extended 64-bit data slot containing SS */
+		u64		ssx;
+		/* The FRED SS extension */
+		struct fred_ss	fred_ss;
+	};
+
+	unsigned long event_data;
+	unsigned long reserved;
+};
+
+static bool ex_handler_erets(const struct exception_table_entry *fixup,
+			     struct pt_regs *regs, unsigned long error_code)
+{
+	struct fred_stack_frame *erets_stack_frame;
+
+	erets_stack_frame = (struct fred_stack_frame *)regs->sp;
+
+	pr_err("Dump FRED stack frame from %04x:%016lx", regs->ss, regs->sp);
+	pr_err("\t\tReserved:\t%016lx", erets_stack_frame->reserved);
+	pr_err("\t\tEvent data:\t%016lx", erets_stack_frame->event_data);
+	pr_err("\t\tAugmented SS:\t%016llx", erets_stack_frame->ssx);
+	pr_err("\t\tRSP:\t\t%016lx", erets_stack_frame->sp);
+	pr_err("\t\tFLAGS:\t\t%016lx", erets_stack_frame->flags);
+	pr_err("\t\tAugmented CS:\t%016llx", erets_stack_frame->csx);
+	pr_err("\t\tRIP:\t\t%016lx", erets_stack_frame->ip);
+	pr_err("\t\tError code:\t%016lx", erets_stack_frame->error_code);
+
+	if (regs->ss != erets_stack_frame->ss) {
+		pr_err("ERETS: SS mismatch, set SS in FRED stack frame to %04x\n", regs->ss);
+		erets_stack_frame->ss = regs->ss;
+		return ex_handler_default(fixup, regs);
+	}
+
+	if (regs->cs != erets_stack_frame->cs) {
+		pr_err("ERETS: CS mismatch, set CS in FRED stack frame to %04x\n", regs->cs);
+		erets_stack_frame->cs = regs->cs;
+		return ex_handler_default(fixup, regs);
+	}
+
+	if (erets_stack_frame->csx & ~0x7ffffUL)
+		pr_err("ERETS: augmented CS %016llx has reserved bits set", erets_stack_frame->csx);
+
+	if (!__is_canonical_address(erets_stack_frame->ip, boot_cpu_data.x86_virt_bits))
+		pr_err("ERETS: IP %016lx is not canonical", erets_stack_frame->ip);
+
+	if (erets_stack_frame->ssx & 0xfff80000UL)
+		pr_err("ERETS: augmented SS %016llx has reserved bits set", erets_stack_frame->ssx);
+
+	if ((erets_stack_frame->flags & 2) != 2)
+		pr_err("ERETS: flags %016lx has bit 1 cleared", erets_stack_frame->flags);
+
+	if (erets_stack_frame->flags & ~0x3d7fd7UL)
+		pr_err("ERETS: flags %016lx has reserved bits set", erets_stack_frame->flags);
+
+	return false;
+}
 #endif
 
 int ex_get_fixup_type(unsigned long ip)
@@ -367,6 +443,8 @@ int fixup_exception(struct pt_regs *regs, int trapnr, unsigned long error_code,
 #ifdef CONFIG_X86_FRED
 	case EX_TYPE_ERETU:
 		return ex_handler_eretu(e, regs, error_code);
+	case EX_TYPE_ERETS:
+		return ex_handler_erets(e, regs, error_code);
 #endif
 	}
 	BUG();
