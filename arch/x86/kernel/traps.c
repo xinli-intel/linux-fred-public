@@ -690,6 +690,8 @@ static void gp_user_force_sig_segv(struct pt_regs *regs, int trapnr,
 	force_sig(SIGSEGV);
 }
 
+extern void asm_fred_erets(void);
+
 DEFINE_IDTENTRY_ERRORCODE(exc_general_protection)
 {
 	char desc[sizeof(GPFSTR) + 50 + 2*sizeof(unsigned long) + 1] = GPFSTR;
@@ -698,6 +700,20 @@ DEFINE_IDTENTRY_ERRORCODE(exc_general_protection)
 
 	if (user_mode(regs) && try_fixup_enqcmd_gp())
 		return;
+
+	if (unlikely(regs->ip == (unsigned long)&asm_fred_erets)) {
+		unsigned long *p = (unsigned long *)regs->sp;
+
+		pr_err("erets sp: 0x%08lx\n", regs->sp);
+		pr_err("\t\treserved:\t0x%016lx", p[7]);
+		pr_err("\t\tevent data:\t0x%016lx", p[6]);
+		pr_err("\t\taugmented SS:\t0x%016lx", p[5]);
+		pr_err("\t\tRSP:\t\t0x%016lx", p[4]);
+		pr_err("\t\tFLAGS:\t\t0x%016lx", p[3]);
+		pr_err("\t\taugmented CS:\t0x%016lx", p[2]);
+		pr_err("\t\tRIP:\t\t0x%016lx", p[1]);
+		pr_err("\t\terr code:\t0x%016lx", p[0]);
+	}
 
 	cond_local_irq_enable(regs);
 

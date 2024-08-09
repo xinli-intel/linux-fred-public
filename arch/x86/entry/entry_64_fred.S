@@ -53,6 +53,7 @@ SYM_CODE_START_NOALIGN(asm_fred_entrypoint_kernel)
 	FRED_ENTER
 	call	fred_entry_from_kernel
 	FRED_EXIT
+SYM_INNER_LABEL(asm_fred_erets, SYM_L_GLOBAL)
 	ERETS
 SYM_CODE_END(asm_fred_entrypoint_kernel)
 
