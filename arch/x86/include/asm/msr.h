@@ -91,12 +91,12 @@ static __always_inline u64 __rdmsr(unsigned int msr)
 	return EAX_EDX_VAL(val, low, high);
 }
 
-static __always_inline void __wrmsr(unsigned int msr, u32 low, u32 high)
+static __always_inline void __wrmsr(const u32 msr, const u64 val)
 {
 	asm volatile("1: wrmsr\n"
 		     "2:\n"
 		     _ASM_EXTABLE_TYPE(1b, 2b, EX_TYPE_WRMSR)
-		     : : "c" (msr), "a"(low), "d" (high) : "memory");
+		     : : "c" (msr), "a" ((u32)val), "d" ((u32)(val >> 32)) : "memory");
 }
 
 #define native_rdmsr(msr, val1, val2)			\
@@ -112,11 +112,10 @@ static __always_inline u64 native_rdmsrq(const u32 msr)
 }
 
 #define native_wrmsr(msr, low, high)			\
-	__wrmsr(msr, low, high)
+	__wrmsr((msr), (u64)(high) << 32 | (low))
 
 #define native_wrmsrq(msr, val)				\
-	__wrmsr((msr), (u32)((u64)(val)),		\
-		       (u32)((u64)(val) >> 32))
+	__wrmsr((msr), (val))
 
 static inline u64 native_read_msr(unsigned int msr)
 {
@@ -146,11 +145,8 @@ static inline u64 native_read_msr_safe(unsigned int msr,
 }
 
 /* Can be uninlined because referenced by paravirt */
-static inline void notrace
-native_write_msr(unsigned int msr, u32 low, u32 high)
+static inline void notrace native_write_msr(const u32 msr, const u64 val)
 {
-	u64 val = (u64)high << 32 | low;
-
 	native_wrmsrq(msr, val);
 
 	if (tracepoint_enabled(write_msr))
@@ -158,8 +154,7 @@ native_write_msr(unsigned int msr, u32 low, u32 high)
 }
 
 /* Can be uninlined because referenced by paravirt */
-static inline int notrace
-native_write_msr_safe(unsigned int msr, u32 low, u32 high)
+static inline int notrace native_write_msr_safe(const u32 msr, const u64 val)
 {
 	int err;
 
@@ -167,10 +162,10 @@ native_write_msr_safe(unsigned int msr, u32 low, u32 high)
 		     "2:\n\t"
 		     _ASM_EXTABLE_TYPE_REG(1b, 2b, EX_TYPE_WRMSR_SAFE, %[err])
 		     : [err] "=a" (err)
-		     : "c" (msr), "0" (low), "d" (high)
+		     : "c" (msr), "0" ((u32)val), "d" ((u32)(val >> 32))
 		     : "memory");
 	if (tracepoint_enabled(write_msr))
-		do_trace_write_msr(msr, ((u64)high << 32 | low), err);
+		do_trace_write_msr(msr, val, err);
 	return err;
 }
 
@@ -258,23 +253,23 @@ do {								\
 	(void)((high) = (u32)(__val >> 32));			\
 } while (0)
 
-static inline void wrmsr(unsigned int msr, u32 low, u32 high)
+static inline void wrmsr(const u32 msr, const u32 low, const u32 high)
 {
-	native_write_msr(msr, low, high);
+	native_write_msr(msr, (u64)high << 32 | low);
 }
 
 #define rdmsrq(msr, val)			\
 	((val) = native_read_msr((msr)))
 
-static inline void wrmsrq(unsigned int msr, u64 val)
+static inline void wrmsrq(const u32 msr, const u64 val)
 {
-	native_write_msr(msr, (u32)(val & 0xffffffffULL), (u32)(val >> 32));
+	native_write_msr(msr, val);
 }
 
 /* wrmsr with exception handling */
-static inline int wrmsr_safe(unsigned int msr, u32 low, u32 high)
+static inline int wrmsrq_safe(const u32 msr, const u64 val)
 {
-	return native_write_msr_safe(msr, low, high);
+	return native_write_msr_safe(msr, val);
 }
 
 /* rdmsr with exception handling */
@@ -322,11 +317,11 @@ static __always_inline void wrmsrns(u32 msr, u64 val)
 }
 
 /*
- * 64-bit version of wrmsr_safe():
+ * Dual u32 version of wrmsrq_safe():
  */
-static inline int wrmsrq_safe(u32 msr, u64 val)
+static inline int wrmsr_safe(const u32 msr, const u32 low, const u32 high)
 {
-	return wrmsr_safe(msr, (u32)val,  (u32)(val >> 32));
+	return wrmsrq_safe(msr, (u64)high << 32 | low);
 }
 
 struct msr __percpu *msrs_alloc(void);
