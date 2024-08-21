@@ -17,6 +17,7 @@ static DEFINE_PER_CPU_PAGE_ALIGNED(struct entry_stack_page, entry_stack_storage)
 #ifdef CONFIG_X86_64
 static DEFINE_PER_CPU_PAGE_ALIGNED(struct exception_stacks, exception_stacks);
 DEFINE_PER_CPU(struct cea_exception_stacks*, cea_exception_stacks);
+EXPORT_PER_CPU_SYMBOL(cea_exception_stacks);
 
 static DEFINE_PER_CPU_READ_MOSTLY(unsigned long, _cea_offset);
 
