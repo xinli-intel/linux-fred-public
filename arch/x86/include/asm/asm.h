@@ -257,5 +257,11 @@ register unsigned long current_stack_pointer asm(_ASM_SP);
 # define EAX_EDX_RET(val, low, high)		"=A" (val)
 #endif
 
+#define _ASM_EXTABLE_FUNC_REWIND(from, ipdelta, spdelta)	\
+	_ASM_EXTABLE_TYPE(from, from /* unused */,		\
+			  EX_TYPE_FUNC_REWIND |			\
+			  EX_DATA_REG(spdelta) |		\
+			  EX_DATA_IMM(ipdelta))
+
 #endif /* __KERNEL__ */
 #endif /* _ASM_X86_ASM_H */
