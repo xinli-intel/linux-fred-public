@@ -1661,7 +1661,7 @@ static void mon_event_config_write(void *info)
 		pr_warn_once("Invalid event id %d\n", mon_info->evtid);
 		return;
 	}
-	wrmsr(MSR_IA32_EVT_CFG_BASE + index, mon_info->mon_config, 0);
+	wrmsrl(MSR_IA32_EVT_CFG_BASE + index, mon_info->mon_config);
 }
 
 static void mbm_config_write_domain(struct rdt_resource *r,
