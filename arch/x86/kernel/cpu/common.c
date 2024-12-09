@@ -997,6 +997,7 @@ void get_cpu_cap(struct cpuinfo_x86 *c)
 		if (eax >= 1) {
 			cpuid_count(0x00000007, 1, &eax, &ebx, &ecx, &edx);
 			c->x86_capability[CPUID_7_1_EAX] = eax;
+			c->x86_capability[CPUID_7_1_ECX] = ecx;
 		}
 	}
 
