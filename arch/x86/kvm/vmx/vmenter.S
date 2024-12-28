@@ -123,10 +123,18 @@ SYM_FUNC_START(__vmx_vcpu_run)
 	movl PER_CPU_VAR(x86_spec_ctrl_current), %esi
 	cmp %edi, %esi
 	je .Lspec_ctrl_done
-	mov $MSR_IA32_SPEC_CTRL, %ecx
+
+#ifdef CONFIG_X86_64
+	/* Clear the higher 32-bit of RAX for the immediate form WRMSRNS */
+	ALTERNATIVE "", "xor %rax, %rax", X86_FEATURE_MSR_IMM
+#endif
+
 	xor %edx, %edx
 	mov %edi, %eax
-	wrmsr
+	/* Replace with 'wrmsrns' and 'wrmsrns %rax, $MSR_IA32_SPEC_CTRL' once binutils support them */
+	ALTERNATIVE_2 __stringify(mov $MSR_IA32_SPEC_CTRL, %ecx; ds wrmsr),					\
+		      __stringify(mov $MSR_IA32_SPEC_CTRL, %ecx; .byte 0x0f,0x01,0xc6), X86_FEATURE_WRMSRNS,	\
+		      __stringify(.byte 0xc4,0xe7,0x7a,0xf6,0xc0; .long MSR_IA32_SPEC_CTRL), X86_FEATURE_MSR_IMM
 
 .Lspec_ctrl_done:
 
