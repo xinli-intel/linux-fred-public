@@ -76,13 +76,6 @@ static __always_inline bool is_msr_imm_insn(void *ip)
 #endif
 }
 
-/*
- * __rdmsr() and __wrmsr() are the two primitives which are the bare minimum MSR
- * accessors and should not have any tracing or other functionality piggybacking
- * on them - those are *purely* for accessing MSRs and nothing more. So don't even
- * think of extending them - you will be slapped with a stinking trout or a frozen
- * shark will reach you, wherever you are! You've been warned.
- */
 static __always_inline u64 __rdmsr(u32 msr)
 {
 	EAX_EDX_DECLARE_ARGS(val, low, high);
@@ -93,14 +86,6 @@ static __always_inline u64 __rdmsr(u32 msr)
 		     : EAX_EDX_RET(val, low, high) : "c" (msr));
 
 	return EAX_EDX_VAL(val, low, high);
-}
-
-static __always_inline void __wrmsrq(u32 msr, u64 val)
-{
-	asm volatile("1: wrmsr\n"
-		     "2:\n"
-		     _ASM_EXTABLE_TYPE(1b, 2b, EX_TYPE_WRMSR)
-		     : : "c" (msr), "a" ((u32)val), "d" ((u32)(val >> 32)) : "memory");
 }
 
 #define native_rdmsr(msr, val1, val2)			\
@@ -114,12 +99,6 @@ static __always_inline u64 native_rdmsrq(u32 msr)
 {
 	return __rdmsr(msr);
 }
-
-#define native_wrmsr(msr, low, high)			\
-	__wrmsrq((msr), (u64)(high) << 32 | (low))
-
-#define native_wrmsrq(msr, val)				\
-	__wrmsrq((msr), (val))
 
 static inline u64 native_read_msr(u32 msr)
 {
@@ -151,7 +130,132 @@ static inline int native_read_msr_safe(u32 msr, u64 *p)
 	return err;
 }
 
-/* Can be uninlined because referenced by paravirt */
+/*
+ * There are two sets of APIs for MSR accesses: native APIs and generic APIs.
+ * Native MSR APIs execute MSR instructions directly, regardless of whether the
+ * CPU is paravirtualized or native.  Generic MSR APIs determine the appropriate
+ * MSR access method at runtime, allowing them to be used generically on both
+ * paravirtualized and native CPUs.
+ *
+ * When the compiler can determine the MSR number at compile time, the APIs
+ * with the suffix _constant() are used to enable the immediate form MSR
+ * instructions when available.  The APIs with the suffix _variable() are
+ * used when the MSR number is not known until run time.
+ *
+ * Below is a diagram illustrating the derivation of the MSR write APIs:
+ *
+ *      __native_wrmsrq_variable()    __native_wrmsrq_constant()
+ *                         \           /
+ *                          \         /
+ *                         __native_wrmsrq()   -----------------------
+ *                            /     \                                |
+ *                           /       \                               |
+ *               native_wrmsrq()    native_write_msr_safe()          |
+ *                   /    \                                          |
+ *                  /      \                                         |
+ *      native_wrmsr()    native_write_msr()                         |
+ *                                                                   |
+ *                                                                   |
+ *                                                                   |
+ *                   __xenpv_wrmsrq()                                |
+ *                         |                                         |
+ *                         |                                         |
+ *                      __wrmsrq()   <--------------------------------
+ *                       /    \
+ *                      /      \
+ *                 wrmsrq()   wrmsrq_safe()
+ *                    /          \
+ *                   /            \
+ *                wrmsr()        wrmsr_safe()
+ */
+
+/*
+ * Non-serializing WRMSR, when available.
+ *
+ * Otherwise, it falls back to a serializing WRMSR.
+ */
+static __always_inline bool __native_wrmsrq_variable(u32 msr, u64 val, int type)
+{
+#ifdef CONFIG_X86_64
+	BUILD_BUG_ON(__builtin_constant_p(msr));
+#endif
+
+	/*
+	 * WRMSR is 2 bytes.  WRMSRNS is 3 bytes.  Pad WRMSR with a redundant
+	 * DS prefix to avoid a trailing NOP.
+	 */
+	asm_inline volatile goto(
+		"1:\n"
+		ALTERNATIVE("ds wrmsr",
+			    ASM_WRMSRNS,
+			    X86_FEATURE_WRMSRNS)
+		_ASM_EXTABLE_TYPE(1b, %l[badmsr], %c[type])
+
+		:
+		: "c" (msr), "a" ((u32)val), "d" ((u32)(val >> 32)), [type] "i" (type)
+		: "memory"
+		: badmsr);
+
+	return false;
+
+badmsr:
+	return true;
+}
+
+#ifdef CONFIG_X86_64
+/*
+ * Non-serializing WRMSR or its immediate form, when available.
+ *
+ * Otherwise, it falls back to a serializing WRMSR.
+ */
+static __always_inline bool __native_wrmsrq_constant(u32 msr, u64 val, int type)
+{
+	BUILD_BUG_ON(!__builtin_constant_p(msr));
+
+	asm_inline volatile goto(
+		"1:\n"
+		ALTERNATIVE_2(PREPARE_RCX_RDX_FOR_WRMSR
+			      "2: ds wrmsr",
+			      PREPARE_RCX_RDX_FOR_WRMSR
+			      ASM_WRMSRNS,
+			      X86_FEATURE_WRMSRNS,
+			      ASM_WRMSRNS_IMM,
+			      X86_FEATURE_MSR_IMM)
+		_ASM_EXTABLE_TYPE(1b, %l[badmsr], %c[type])	/* For WRMSRNS immediate */
+		_ASM_EXTABLE_TYPE(2b, %l[badmsr], %c[type])	/* For WRMSR(NS) */
+
+		:
+		: [val] "a" (val), [msr] "i" (msr), [type] "i" (type)
+		: "memory", "ecx", "rdx"
+		: badmsr);
+
+	return false;
+
+badmsr:
+	return true;
+}
+#endif
+
+static __always_inline bool __native_wrmsrq(u32 msr, u64 val, int type)
+{
+#ifdef CONFIG_X86_64
+	if (__builtin_constant_p(msr))
+		return __native_wrmsrq_constant(msr, val, type);
+#endif
+
+	return __native_wrmsrq_variable(msr, val, type);
+}
+
+static __always_inline void native_wrmsrq(u32 msr, u64 val)
+{
+	__native_wrmsrq(msr, val, EX_TYPE_WRMSR);
+}
+
+static __always_inline void native_wrmsr(u32 msr, u32 low, u32 high)
+{
+	native_wrmsrq(msr, (u64)high << 32 | low);
+}
+
 static inline void notrace native_write_msr(u32 msr, u64 val)
 {
 	native_wrmsrq(msr, val);
@@ -160,20 +264,49 @@ static inline void notrace native_write_msr(u32 msr, u64 val)
 		do_trace_write_msr(msr, val, 0);
 }
 
-/* Can be uninlined because referenced by paravirt */
 static inline int notrace native_write_msr_safe(u32 msr, u64 val)
 {
-	int err;
+	int err = __native_wrmsrq(msr, val, EX_TYPE_WRMSR_SAFE) ? -EIO : 0;
 
-	asm volatile("1: wrmsr ; xor %[err],%[err]\n"
-		     "2:\n\t"
-		     _ASM_EXTABLE_TYPE_REG(1b, 2b, EX_TYPE_WRMSR_SAFE, %[err])
-		     : [err] "=a" (err)
-		     : "c" (msr), "0" ((u32)val), "d" ((u32)(val >> 32))
-		     : "memory");
 	if (tracepoint_enabled(write_msr))
 		do_trace_write_msr(msr, val, err);
+
 	return err;
+}
+
+static __always_inline bool __wrmsrq(u32 msr, u64 val, int type)
+{
+	bool ret;
+
+	if (cpu_feature_enabled(X86_FEATURE_XENPV))
+		return __xenpv_wrmsrq(msr, val, type);
+
+	ret = __native_wrmsrq(msr, val, type);
+
+	if (tracepoint_enabled(write_msr))
+		do_trace_write_msr(msr, val, ret ? -EIO : 0);
+
+	return ret;
+}
+
+static __always_inline void wrmsrq(u32 msr, u64 val)
+{
+	__wrmsrq(msr, val, EX_TYPE_WRMSR);
+}
+
+static __always_inline void wrmsr(u32 msr, u32 low, u32 high)
+{
+	wrmsrq(msr, (u64)high << 32 | low);
+}
+
+static __always_inline int wrmsrq_safe(u32 msr, u64 val)
+{
+	return __wrmsrq(msr, val, EX_TYPE_WRMSR_SAFE) ? -EIO : 0;
+}
+
+static __always_inline int wrmsr_safe(u32 msr, u32 low, u32 high)
+{
+	return wrmsrq_safe(msr, (u64)high << 32 | low);
 }
 
 extern int rdmsr_safe_regs(u32 regs[8]);
@@ -216,24 +349,8 @@ do {								\
 	(void)((high) = (u32)(__val >> 32));			\
 } while (0)
 
-static inline void wrmsr(u32 msr, u32 low, u32 high)
-{
-	native_write_msr(msr, (u64)high << 32 | low);
-}
-
 #define rdmsrq(msr, val)			\
 	((val) = native_read_msr((msr)))
-
-static inline void wrmsrq(u32 msr, u64 val)
-{
-	native_write_msr(msr, val);
-}
-
-/* wrmsr with exception handling */
-static inline int wrmsrq_safe(u32 msr, u64 val)
-{
-	return native_write_msr_safe(msr, val);
-}
 
 /* rdmsr with exception handling */
 #define rdmsr_safe(msr, low, high)				\
@@ -250,29 +367,6 @@ static inline int rdmsrq_safe(u32 msr, u64 *p)
 	return native_read_msr_safe(msr, p);
 }
 #endif	/* !CONFIG_PARAVIRT_XXL */
-
-/* Instruction opcode for WRMSRNS supported in binutils >= 2.40 */
-#define ASM_WRMSRNS _ASM_BYTES(0x0f,0x01,0xc6)
-
-/* Non-serializing WRMSR, when available.  Falls back to a serializing WRMSR. */
-static __always_inline void wrmsrns(u32 msr, u64 val)
-{
-	/*
-	 * WRMSR is 2 bytes.  WRMSRNS is 3 bytes.  Pad WRMSR with a redundant
-	 * DS prefix to avoid a trailing NOP.
-	 */
-	asm volatile("1: " ALTERNATIVE("ds wrmsr", ASM_WRMSRNS, X86_FEATURE_WRMSRNS)
-		     "2: " _ASM_EXTABLE_TYPE(1b, 2b, EX_TYPE_WRMSR)
-		     : : "c" (msr), "a" ((u32)val), "d" ((u32)(val >> 32)));
-}
-
-/*
- * Dual u32 version of wrmsrq_safe():
- */
-static inline int wrmsr_safe(u32 msr, u32 low, u32 high)
-{
-	return wrmsrq_safe(msr, (u64)high << 32 | low);
-}
 
 struct msr __percpu *msrs_alloc(void);
 void msrs_free(struct msr __percpu *msrs);
