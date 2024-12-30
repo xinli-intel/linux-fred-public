@@ -1119,11 +1119,11 @@ static void set_seg(const u32 which, const u64 base)
 }
 
 /*
- * Support write_msr_safe() and write_msr() semantics.
- * With err == NULL write_msr() semantics are selected.
- * Supplying an err pointer requires err to be pre-initialized with 0.
+ * Return true to indicate the requested MSR write has been done successfully,
+ * otherwise return false to have the calling MSR write primitives in msr.h to
+ * fail.
  */
-static void xen_do_write_msr(const u32 msr, const u64 val, int *err)
+bool xen_do_write_msr(const u32 msr, const u64 val)
 {
 	bool emulated;
 	u64 v = val;
@@ -1131,15 +1131,15 @@ static void xen_do_write_msr(const u32 msr, const u64 val, int *err)
 	switch (msr) {
 	case MSR_FS_BASE:
 		set_seg(SEGBASE_FS, val);
-		break;
+		return true;
 
 	case MSR_KERNEL_GS_BASE:
 		set_seg(SEGBASE_GS_USER, val);
-		break;
+		return true;
 
 	case MSR_GS_BASE:
 		set_seg(SEGBASE_GS_KERNEL, val);
-		break;
+		return true;
 
 	case MSR_STAR:
 	case MSR_CSTAR:
@@ -1151,16 +1151,13 @@ static void xen_do_write_msr(const u32 msr, const u64 val, int *err)
 		/* Fast syscall setup is all done in hypercalls, so
 		   these are all ignored.  Stub them out here to stop
 		   Xen console noise. */
-		break;
+		return true;
 
 	default:
 		if (pmu_msr_chk_emulated(msr, &v, false, &emulated) && emulated)
-			return;
+			return true;
 
-		if (err)
-			*err = native_write_msr_safe(msr, val);
-		else
-			native_write_msr(msr, val);
+		return false;
 	}
 }
 
@@ -1169,27 +1166,11 @@ static u64 xen_read_msr_safe(unsigned int msr, int *err)
 	return xen_do_read_msr(msr, err);
 }
 
-static int xen_write_msr_safe(const u32 msr, const u64 val)
-{
-	int err = 0;
-
-	xen_do_write_msr(msr, val, &err);
-
-	return err;
-}
-
 static u64 xen_read_msr(unsigned int msr)
 {
 	int err;
 
 	return xen_do_read_msr(msr, xen_msr_safe ? &err : NULL);
-}
-
-static void xen_write_msr(const u32 msr, const u64 val)
-{
-	int err;
-
-	xen_do_write_msr(msr, val, xen_msr_safe ? &err : NULL);
 }
 
 /* This is called once we have the cpu_possible_mask */
@@ -1227,10 +1208,8 @@ static const typeof(pv_ops) xen_cpu_ops __initconst = {
 		.write_cr4 = xen_write_cr4,
 
 		.read_msr = xen_read_msr,
-		.write_msr = xen_write_msr,
 
 		.read_msr_safe = xen_read_msr_safe,
-		.write_msr_safe = xen_write_msr_safe,
 
 		.read_pmc = xen_read_pmc,
 
