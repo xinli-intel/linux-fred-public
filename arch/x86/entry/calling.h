@@ -304,12 +304,12 @@ For 32-bit we have the following conventions - kernel is built with
 .macro IBRS_ENTER save_reg
 #ifdef CONFIG_MITIGATION_IBRS_ENTRY
 	ALTERNATIVE "jmp .Lend_\@", "", X86_FEATURE_KERNEL_IBRS
-	movl	$MSR_IA32_SPEC_CTRL, %ecx
+	ALTERNATIVE __stringify(mov $MSR_IA32_SPEC_CTRL, %ecx), "", X86_FEATURE_MSR_IMM
 
 .ifnb \save_reg
-	rdmsr
-	shl	$32, %rdx
-	or	%rdx, %rax
+	/* Replace with 'rdmsr $MSR_IA32_SPEC_CTRL, %rax' once binutils support it */
+	ALTERNATIVE "rdmsr; shl $32, %rdx; or %rdx, %rax",				\
+		    __stringify(.byte 0xc4,0xe7,0x7b,0xf6,0xc0; .long MSR_IA32_SPEC_CTRL), X86_FEATURE_MSR_IMM
 	mov	%rax, \save_reg
 	test	$SPEC_CTRL_IBRS, %eax
 	jz	.Ldo_wrmsr_\@
@@ -319,9 +319,13 @@ For 32-bit we have the following conventions - kernel is built with
 .endif
 
 	movq	PER_CPU_VAR(x86_spec_ctrl_current), %rdx
-	movl	%edx, %eax
-	shr	$32, %rdx
-	wrmsr
+
+	/* Replace with 'wrmsrns' and 'wrmsrns %rdx, $MSR_IA32_SPEC_CTRL' once binutils support them */
+	ALTERNATIVE_2 "movl %edx, %eax; shr $32, %rdx; ds wrmsr",			\
+		      "movl %edx, %eax; shr $32, %rdx; .byte 0x0f,0x01,0xc6",		\
+		      X86_FEATURE_WRMSRNS,						\
+		      __stringify(.byte 0xc4,0xe7,0x7a,0xf6,0xc2; .long MSR_IA32_SPEC_CTRL), X86_FEATURE_MSR_IMM
+
 .Lend_\@:
 #endif
 .endm
@@ -333,7 +337,6 @@ For 32-bit we have the following conventions - kernel is built with
 .macro IBRS_EXIT save_reg
 #ifdef CONFIG_MITIGATION_IBRS_ENTRY
 	ALTERNATIVE "jmp .Lend_\@", "", X86_FEATURE_KERNEL_IBRS
-	movl	$MSR_IA32_SPEC_CTRL, %ecx
 
 .ifnb \save_reg
 	mov	\save_reg, %rdx
@@ -342,9 +345,12 @@ For 32-bit we have the following conventions - kernel is built with
 	andl	$(~SPEC_CTRL_IBRS), %edx
 .endif
 
-	movl	%edx, %eax
-	shr	$32, %rdx
-	wrmsr
+	/* Replace with 'wrmsrns' and 'wrmsrns %rdx, $MSR_IA32_SPEC_CTRL' once binutils support them */
+	ALTERNATIVE_2 __stringify(movl %edx, %eax; shr $32, %rdx; mov $MSR_IA32_SPEC_CTRL, %ecx; ds wrmsr),		\
+		      __stringify(movl %edx, %eax; shr $32, %rdx; mov $MSR_IA32_SPEC_CTRL, %ecx; .byte 0x0f,0x01,0xc6),	\
+		      X86_FEATURE_WRMSRNS,										\
+		      __stringify(.byte 0xc4,0xe7,0x7a,0xf6,0xc2; .long MSR_IA32_SPEC_CTRL), X86_FEATURE_MSR_IMM
+
 .Lend_\@:
 #endif
 .endm
