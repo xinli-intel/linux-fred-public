@@ -1962,9 +1962,14 @@ EXPORT_SYMBOL_GPL(kvm_set_msr);
 
 static void complete_userspace_rdmsr(struct kvm_vcpu *vcpu)
 {
-	if (!vcpu->run->msr.error) {
+	if (vcpu->run->msr.error)
+		return;
+
+	if (vcpu->arch.rdmsr_reg == VCPU_EXREG_EDX_EAX) {
 		kvm_rax_write(vcpu, (u32)vcpu->run->msr.data);
 		kvm_rdx_write(vcpu, vcpu->run->msr.data >> 32);
+	} else {
+		kvm_register_write(vcpu, vcpu->arch.rdmsr_reg, vcpu->run->msr.data);
 	}
 }
 
@@ -2041,6 +2046,8 @@ static int kvm_emulate_get_msr(struct kvm_vcpu *vcpu, u32 msr, int reg)
 			kvm_register_write(vcpu, reg, data);
 		}
 	} else {
+		vcpu->arch.rdmsr_reg = reg;
+
 		/* MSR read failed? See if we should ask user space */
 		if (kvm_msr_user_space(vcpu, msr, KVM_EXIT_X86_RDMSR, 0,
 				       complete_fast_rdmsr, r))
@@ -2056,6 +2063,12 @@ int kvm_emulate_rdmsr(struct kvm_vcpu *vcpu)
 	return kvm_emulate_get_msr(vcpu, kvm_rcx_read(vcpu), VCPU_EXREG_EDX_EAX);
 }
 EXPORT_SYMBOL_GPL(kvm_emulate_rdmsr);
+
+int kvm_emulate_rdmsr_imm(struct kvm_vcpu *vcpu, u32 msr, int reg)
+{
+	return kvm_emulate_get_msr(vcpu, msr, reg);
+}
+EXPORT_SYMBOL_GPL(kvm_emulate_rdmsr_imm);
 
 static int kvm_emulate_set_msr(struct kvm_vcpu *vcpu, u32 msr, int reg)
 {
@@ -2090,6 +2103,12 @@ int kvm_emulate_wrmsr(struct kvm_vcpu *vcpu)
 	return kvm_emulate_set_msr(vcpu, kvm_rcx_read(vcpu), VCPU_EXREG_EDX_EAX);
 }
 EXPORT_SYMBOL_GPL(kvm_emulate_wrmsr);
+
+int kvm_emulate_wrmsr_imm(struct kvm_vcpu *vcpu, u32 msr, int reg)
+{
+	return kvm_emulate_set_msr(vcpu, msr, reg);
+}
+EXPORT_SYMBOL_GPL(kvm_emulate_wrmsr_imm);
 
 int kvm_emulate_as_nop(struct kvm_vcpu *vcpu)
 {
@@ -2230,6 +2249,12 @@ fastpath_t handle_fastpath_set_msr_irqoff(struct kvm_vcpu *vcpu)
 	return handle_set_msr_irqoff(vcpu, kvm_rcx_read(vcpu), VCPU_EXREG_EDX_EAX);
 }
 EXPORT_SYMBOL_GPL(handle_fastpath_set_msr_irqoff);
+
+fastpath_t handle_fastpath_set_msr_imm_irqoff(struct kvm_vcpu *vcpu, u32 msr, int reg)
+{
+	return handle_set_msr_irqoff(vcpu, msr, reg);
+}
+EXPORT_SYMBOL_GPL(handle_fastpath_set_msr_imm_irqoff);
 
 /*
  * Adapt set_msr() to msr_io()'s calling convention
@@ -8387,6 +8412,8 @@ static int emulator_get_msr_with_filter(struct x86_emulate_ctxt *ctxt,
 		return X86EMUL_UNHANDLEABLE;
 
 	if (r) {
+		vcpu->arch.rdmsr_reg = VCPU_EXREG_EDX_EAX;
+
 		if (kvm_msr_user_space(vcpu, msr_index, KVM_EXIT_X86_RDMSR, 0,
 				       complete_emulated_rdmsr, r))
 			return X86EMUL_IO_NEEDED;

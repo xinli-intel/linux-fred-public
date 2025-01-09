@@ -6003,6 +6003,22 @@ static int handle_notify(struct kvm_vcpu *vcpu)
 	return 1;
 }
 
+static int handle_rdmsr_imm(struct kvm_vcpu *vcpu)
+{
+	u32 msr = vmx_get_exit_qual(vcpu);
+	int reg = vmx_get_instr_info_reg(vmcs_read32(VMX_INSTRUCTION_INFO));
+
+	return kvm_emulate_rdmsr_imm(vcpu, msr, reg);
+}
+
+static int handle_wrmsr_imm(struct kvm_vcpu *vcpu)
+{
+	u32 msr = vmx_get_exit_qual(vcpu);
+	int reg = vmx_get_instr_info_reg(vmcs_read32(VMX_INSTRUCTION_INFO));
+
+	return kvm_emulate_wrmsr_imm(vcpu, msr, reg);
+}
+
 /*
  * The exit handlers return 1 if the exit was handled fully and guest execution
  * may resume.  Otherwise they set the kvm_run parameter to indicate what needs
@@ -6061,6 +6077,8 @@ static int (*kvm_vmx_exit_handlers[])(struct kvm_vcpu *vcpu) = {
 	[EXIT_REASON_ENCLS]		      = handle_encls,
 	[EXIT_REASON_BUS_LOCK]                = handle_bus_lock_vmexit,
 	[EXIT_REASON_NOTIFY]		      = handle_notify,
+	[EXIT_REASON_MSR_READ_IMM]            = handle_rdmsr_imm,
+	[EXIT_REASON_MSR_WRITE_IMM]           = handle_wrmsr_imm,
 };
 
 static const int kvm_vmx_max_exit_handlers =
@@ -6495,6 +6513,8 @@ static int __vmx_handle_exit(struct kvm_vcpu *vcpu, fastpath_t exit_fastpath)
 #ifdef CONFIG_MITIGATION_RETPOLINE
 	if (exit_reason.basic == EXIT_REASON_MSR_WRITE)
 		return kvm_emulate_wrmsr(vcpu);
+	else if (exit_reason.basic == EXIT_REASON_MSR_WRITE_IMM)
+		return handle_wrmsr_imm(vcpu);
 	else if (exit_reason.basic == EXIT_REASON_PREEMPTION_TIMER)
 		return handle_preemption_timer(vcpu);
 	else if (exit_reason.basic == EXIT_REASON_INTERRUPT_WINDOW)
@@ -7171,6 +7191,12 @@ static fastpath_t vmx_exit_handlers_fastpath(struct kvm_vcpu *vcpu,
 	switch (vmx_get_exit_reason(vcpu).basic) {
 	case EXIT_REASON_MSR_WRITE:
 		return handle_fastpath_set_msr_irqoff(vcpu);
+	case EXIT_REASON_MSR_WRITE_IMM: {
+		u32 msr = vmx_get_exit_qual(vcpu);
+		int reg = vmx_get_instr_info_reg(vmcs_read32(VMX_INSTRUCTION_INFO));
+
+		return handle_fastpath_set_msr_imm_irqoff(vcpu, msr, reg);
+	}
 	case EXIT_REASON_PREEMPTION_TIMER:
 		return handle_fastpath_preemption_timer(vcpu, force_immediate_exit);
 	case EXIT_REASON_HLT:
