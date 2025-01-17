@@ -406,3 +406,52 @@ SYM_CODE_END(xen_entry_SYSCALL_compat)
 	RET
 SYM_FUNC_END(asm_xen_write_msr)
 EXPORT_SYMBOL_GPL(asm_xen_write_msr)
+
+/*
+ * MSR number in %ecx, MSR value will be returned in %rax.
+ *
+ * The prototype of the Xen C code:
+ * 	struct { u64 val, bool done } xen_read_msr(u32 msr)
+ */
+SYM_FUNC_START(asm_xen_read_msr)
+	ENDBR
+	FRAME_BEGIN
+	XEN_SAVE_CALLEE_REGS_FOR_MSR
+	mov %ecx, %edi		/* MSR number */
+	call xen_read_msr
+	test %dl, %dl		/* %dl=1, i.e., ZF=0, meaning successfully done */
+	XEN_RESTORE_CALLEE_REGS_FOR_MSR
+	jnz 2f
+
+	/*
+	 * Falls through to the native RDMSR instruction if xen_read_msr() failed,
+	 * i.e., the MSR access should be executed natively, which will trigger a
+	 * #GP fault...
+	 */
+1:	rdmsr
+
+	/*
+	 * Note, #GP on RDMSR is reflected to the caller of this function through
+	 * EX_TYPE_FUNC_REWIND, which enforces a coupling between the caller and
+	 * callee, IOW the callee is able to calculate the address of the CALL
+	 * instruction in the caller that invoked it.
+	 *
+	 * The top of the stack points directly at the return address;
+	 * back up by 5 bytes (length of the CALL instruction in the caller) from
+	 * the return address.
+	 */
+	_ASM_EXTABLE_FUNC_REWIND(1b, -5, FRAME_OFFSET / (BITS_PER_LONG / 8))
+
+	shl $0x20, %rdx
+	or %rdx, %rax
+
+	XEN_SAVE_CALLEE_REGS_FOR_MSR
+	mov %ecx, %edi
+	mov %rax, %rsi
+	call xen_read_msr_fixup
+	XEN_RESTORE_CALLEE_REGS_FOR_MSR
+
+2:	FRAME_END
+	RET
+SYM_FUNC_END(asm_xen_read_msr)
+EXPORT_SYMBOL_GPL(asm_xen_read_msr)

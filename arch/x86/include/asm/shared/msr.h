@@ -21,6 +21,8 @@ struct msr {
 
 /* The GNU Assembler (Gas) with Binutils 2.41 adds the .insn directive support */
 #if defined(CONFIG_AS_IS_GNU) && CONFIG_AS_VERSION >= 24100
+#define ASM_RDMSR_IMM			\
+	" .insn VEX.128.F2.M7.W0 0xf6 /0, %[msr]%{:u32}, %[val]\n\t"
 #define ASM_WRMSRNS_IMM			\
 	" .insn VEX.128.F3.M7.W0 0xf6 /0, %[val], %[msr]%{:u32}\n\t"
 #else
@@ -30,9 +32,16 @@ struct msr {
  * The register operand is encoded as %rax because all uses of the immediate
  * form MSR access instructions reference %rax as the register operand.
  */
+#define ASM_RDMSR_IMM			\
+	" .byte 0xc4,0xe7,0x7b,0xf6,0xc0; .long %c[msr]"
 #define ASM_WRMSRNS_IMM			\
 	" .byte 0xc4,0xe7,0x7a,0xf6,0xc0; .long %c[msr]"
 #endif
+
+#define RDMSR_AND_SAVE_RESULT		\
+	"rdmsr\n\t"			\
+	"shl $0x20, %%rdx\n\t"		\
+	"or %%rdx, %%rax\n\t"
 
 #define PREPARE_RDX_FOR_WRMSR		\
 	"mov %%rax, %%rdx\n\t"		\
