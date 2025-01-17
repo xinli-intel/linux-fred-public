@@ -415,3 +415,46 @@ SYM_CODE_END(xen_entry_SYSCALL_compat)
 	RET
 SYM_FUNC_END(asm_xen_write_msr)
 EXPORT_SYMBOL_GPL(asm_xen_write_msr)
+
+/*
+ * The prototype of the Xen C code:
+ * 	struct { u64 val, bool done } xen_do_read_msr(u32 msr)
+ *
+ * Native code:
+ * 0f 32			rdmsr	<--- trap point
+ * 48 c1 e2 20			shl	$0x20, %rdx
+ * 48 09 d0			or	%rdx, %rax
+ *
+ * Xen code (rex is just for padding)
+ * 40 e8 xx xx xx xx		rex call asm_xen_read_msr
+*/
+
+SYM_FUNC_START(asm_xen_read_msr)
+	ENDBR
+	FRAME_BEGIN
+	XEN_SAVE_CALLEE_REGS_FOR_MSR
+	mov %ecx, %edi		/* MSR number */
+	call xen_do_read_msr
+	test %dl, %dl		/* %dl=1, i.e., ZF=0, meaning successfully done */
+	XEN_RESTORE_CALLEE_REGS_FOR_MSR
+	jnz 2f
+
+1:	rdmsr
+	_ASM_EXTABLE_FUNC_REWIND(1b, -5, FRAME_OFFSET / (BITS_PER_LONG / 8))
+	shl $0x20, %rdx
+	or %rdx, %rax
+	/*
+	 * The top of the stack points directly at the return address;
+	 * back up by 5 bytes from the return address.
+	 */
+
+	XEN_SAVE_CALLEE_REGS_FOR_MSR
+	mov %ecx, %edi
+	mov %rax, %rsi
+	call xen_do_read_msr_fixup
+	XEN_RESTORE_CALLEE_REGS_FOR_MSR
+
+2:	FRAME_END
+	RET
+SYM_FUNC_END(asm_xen_read_msr)
+EXPORT_SYMBOL_GPL(asm_xen_read_msr)
