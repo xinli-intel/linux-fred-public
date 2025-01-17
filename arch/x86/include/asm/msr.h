@@ -74,6 +74,7 @@ static inline void do_trace_rdpmc(u32 msr, u64 val, int failed) {}
 #endif
 
 #ifdef CONFIG_XEN_PV
+extern void asm_xen_read_msr(void);
 extern void asm_xen_write_msr(void);
 extern u64 xen_read_pmc(int counter);
 
@@ -111,6 +112,8 @@ static __always_inline enum pv_msr_action get_pv_msr_action(u32 msr)
  * The GNU assembler supports the .insn directive since version 2.41.
  */
 #if defined(CONFIG_AS_IS_GNU) && CONFIG_AS_VERSION >= 24100
+#define ASM_RDMSR_IMM			\
+	" .insn VEX.128.F2.M7.W0 0xf6 /0, %[msr]%{:u32}, %[val]\n\t"
 #define ASM_WRMSRNS_IMM			\
 	" .insn VEX.128.F3.M7.W0 0xf6 /0, %[val], %[msr]%{:u32}\n\t"
 #else
@@ -120,9 +123,16 @@ static __always_inline enum pv_msr_action get_pv_msr_action(u32 msr)
  * The register operand is encoded as %rax because all uses of the immediate
  * form MSR access instructions reference %rax as the register operand.
  */
+#define ASM_RDMSR_IMM			\
+	" .byte 0xc4,0xe7,0x7b,0xf6,0xc0; .long %c[msr]"
 #define ASM_WRMSRNS_IMM			\
 	" .byte 0xc4,0xe7,0x7a,0xf6,0xc0; .long %c[msr]"
 #endif
+
+#define RDMSR_AND_SAVE_RESULT		\
+	"rdmsr\n\t"			\
+	"shl $0x20, %%rdx\n\t"		\
+	"or %%rdx, %%rax\n\t"
 
 #define PREPARE_RDX_FOR_WRMSR		\
 	"mov %%rax, %%rdx\n\t"		\
@@ -131,56 +141,6 @@ static __always_inline enum pv_msr_action get_pv_msr_action(u32 msr)
 #define PREPARE_RCX_RDX_FOR_WRMSR	\
 	"mov %[msr], %%ecx\n\t"		\
 	PREPARE_RDX_FOR_WRMSR
-
-static __always_inline u64 __rdmsr(u32 msr)
-{
-	DECLARE_ARGS(val, low, high);
-
-	asm volatile("1: rdmsr\n"
-		     "2:\n"
-		     _ASM_EXTABLE_TYPE(1b, 2b, EX_TYPE_RDMSR)
-		     : EAX_EDX_RET(val, low, high) : "c" (msr));
-
-	return EAX_EDX_VAL(val, low, high);
-}
-
-#define native_rdmsr(msr, val1, val2)			\
-do {							\
-	u64 __val = __rdmsr((msr));			\
-	(void)((val1) = (u32)__val);			\
-	(void)((val2) = (u32)(__val >> 32));		\
-} while (0)
-
-static __always_inline u64 native_rdmsrq(u32 msr)
-{
-	return __rdmsr(msr);
-}
-
-static inline u64 native_read_msr(u32 msr)
-{
-	u64 val;
-
-	val = __rdmsr(msr);
-
-	if (tracepoint_enabled(read_msr))
-		do_trace_read_msr(msr, val, 0);
-
-	return val;
-}
-
-static inline u64 native_read_msr_safe(u32 msr, int *err)
-{
-	DECLARE_ARGS(val, low, high);
-
-	asm volatile("1: rdmsr ; xor %[err],%[err]\n"
-		     "2:\n\t"
-		     _ASM_EXTABLE_TYPE_REG(1b, 2b, EX_TYPE_RDMSR_SAFE, %[err])
-		     : [err] "=r" (*err), EAX_EDX_RET(val, low, high)
-		     : "c" (msr));
-	if (tracepoint_enabled(read_msr))
-		do_trace_read_msr(msr, EAX_EDX_VAL(val, low, high), *err);
-	return EAX_EDX_VAL(val, low, high);
-}
 
 /*
  * There are two sets of functions for MSR accesses, the native ones and
@@ -193,6 +153,212 @@ static inline u64 native_read_msr_safe(u32 msr, int *err)
  * instructions when available.  The APIs with the suffix _variable() are
  * used when the MSR number is not known until run time.
  *
+ * Below is a diagram illustrating the derivation of the MSR read APIs:
+ *
+ *      __native_rdmsr_variable()    __native_rdmsr_constant()
+ *                         \           /
+ *                          \         /
+ *                         __native_rdmsr()   ------------------------
+ *                            /     \                                |
+ *                           /       \                               |
+ *               native_rdmsrq()    native_read_msr_safe()           |
+ *                   /    \                                          |
+ *                  /      \                                         |
+ *      native_rdmsr()    native_read_msr()                          |
+ *                                                                   |
+ *                                                                   |
+ *                                                                   |
+ *                    __xenpv_rdmsr()                                |
+ *                         |                                         |
+ *                         |                                         |
+ *                      __rdmsr()   <---------------------------------
+ *                       /    \
+ *                      /      \
+ *                 rdmsrq()   rdmsrq_safe()
+ *                    /          \
+ *                   /            \
+ *                rdmsr()        rdmsr_safe()
+ */
+
+static __always_inline bool __native_rdmsr_variable(u32 msr, u64 *val, int type)
+{
+#ifdef CONFIG_X86_64
+	BUILD_BUG_ON(__builtin_constant_p(msr));
+
+	asm_inline volatile goto(
+		"1:\n"
+		RDMSR_AND_SAVE_RESULT
+		_ASM_EXTABLE_TYPE(1b, %l[badmsr], %c[type])	/* For RDMSR */
+
+		: [val] "=a" (*val)
+		: "c" (msr), [type] "i" (type)
+		: "memory", "rdx"
+		: badmsr);
+#else
+	asm_inline volatile goto(
+		"1: rdmsr\n\t"
+		_ASM_EXTABLE_TYPE(1b, %l[badmsr], %c[type])	/* For RDMSR */
+
+		: "=A" (*val)
+		: "c" (msr), [type] "i" (type)
+		: "memory"
+		: badmsr);
+#endif
+
+	return false;
+
+badmsr:
+	return true;
+}
+
+#ifdef CONFIG_X86_64
+static __always_inline bool __native_rdmsr_constant(u32 msr, u64 *val, int type)
+{
+	BUILD_BUG_ON(!__builtin_constant_p(msr));
+
+	asm_inline volatile goto(
+		"1:\n"
+		ALTERNATIVE("mov %[msr], %%ecx\n\t"
+			    "2:\n"
+			    RDMSR_AND_SAVE_RESULT,
+			    ASM_RDMSR_IMM,
+			    X86_FEATURE_MSR_IMM)
+		_ASM_EXTABLE_TYPE(1b, %l[badmsr], %c[type])	/* For RDMSR immediate */
+		_ASM_EXTABLE_TYPE(2b, %l[badmsr], %c[type])	/* For RDMSR */
+
+		: [val] "=a" (*val)
+		: [msr] "i" (msr), [type] "i" (type)
+		: "memory", "ecx", "rdx"
+		: badmsr);
+
+	return false;
+
+badmsr:
+	return true;
+}
+#endif
+
+static __always_inline bool __native_rdmsr(u32 msr, u64 *val, int type)
+{
+#ifdef CONFIG_X86_64
+	if (__builtin_constant_p(msr))
+		return __native_rdmsr_constant(msr, val, type);
+#endif
+
+	return __native_rdmsr_variable(msr, val, type);
+}
+
+static __always_inline u64 native_rdmsrq(u32 msr)
+{
+	u64 val = 0;
+
+	__native_rdmsr(msr, &val, EX_TYPE_RDMSR);
+	return val;
+}
+
+#define native_rdmsr(msr, low, high)			\
+do {							\
+	u64 __val = native_rdmsrq(msr);			\
+	(void)((low) = (u32)__val);			\
+	(void)((high) = (u32)(__val >> 32));		\
+} while (0)
+
+static inline u64 native_read_msr(u32 msr)
+{
+	u64 val = native_rdmsrq(msr);
+
+	if (tracepoint_enabled(read_msr))
+		do_trace_read_msr(msr, val, 0);
+
+	return val;
+}
+
+static inline u64 native_read_msr_safe(u32 msr, int *err)
+{
+	u64 val = 0;
+
+	*err = __native_rdmsr(msr, &val, EX_TYPE_RDMSR_SAFE) ? -EIO : 0;
+
+	if (tracepoint_enabled(read_msr))
+		do_trace_read_msr(msr, val, *err);
+
+	return val;
+}
+
+#ifdef CONFIG_XEN_PV
+/* No plan to support immediate form MSR instructions in Xen */
+static __always_inline bool __xenpv_rdmsr(u32 msr, u64 *val, int type)
+{
+	asm_inline volatile goto(
+		"1: call asm_xen_read_msr\n\t"
+		_ASM_EXTABLE_TYPE(1b, %l[badmsr], %c[type])	/* For CALL */
+
+		: [val] "=a" (*val), ASM_CALL_CONSTRAINT
+		: "c" (msr), [type] "i" (type)
+		: "rdx"
+		: badmsr);
+
+	return false;
+
+badmsr:
+	return true;
+}
+#endif
+
+static __always_inline bool __rdmsr(u32 msr, u64 *val, int type)
+{
+	/* When built with CONFIG_XEN_PV and running on Xen hypervisor. */
+	if (cpu_feature_enabled(X86_FEATURE_XENPV)) {
+		const enum pv_msr_action action = get_pv_msr_action(msr);
+
+		if (action == PV_MSR_IGNORE)
+			return false;
+		else
+			return __xenpv_rdmsr(msr, val, type);
+	} else {
+		/*
+		 * 1) When built with !CONFIG_XEN_PV.
+		 * 2) When built with CONFIG_XEN_PV but not running on Xen hypervisor.
+		 */
+		bool ret = __native_rdmsr(msr, val, type);
+
+		if (tracepoint_enabled(read_msr))
+			do_trace_read_msr(msr, *val, ret ? -EIO : 0);
+
+		return ret;
+	}
+}
+
+#define rdmsrq(msr, val)				\
+do {							\
+	u64 ___val = 0;					\
+	__rdmsr((msr), &___val, EX_TYPE_RDMSR);		\
+	(val) = ___val;					\
+} while (0)
+
+#define rdmsr(msr, low, high)				\
+do {							\
+	u64 __val = 0;					\
+	rdmsrq((msr), __val);				\
+	(void)((low) = (u32)__val);			\
+	(void)((high) = (u32)(__val >> 32));		\
+} while (0)
+
+static __always_inline int rdmsrq_safe(u32 msr, u64 *val)
+{
+	return __rdmsr(msr, val, EX_TYPE_RDMSR_SAFE) ? -EIO : 0;
+}
+
+#define rdmsr_safe(msr, low, high)			\
+({							\
+	u64 __val = 0;					\
+	int __err = rdmsrq_safe((msr), &__val);		\
+	(*low) = (u32)__val;				\
+	(*high) = (u32)(__val >> 32);			\
+	__err;						\
+})
+
+/*
  * Below is a diagram illustrating the derivation of the MSR write APIs:
  *
  *      __native_wrmsr_variable()    __native_wrmsr_constant()
@@ -416,45 +582,6 @@ static __always_inline u64 rdpmcq(int counter)
 
 	return EAX_EDX_VAL(val, low, high);
 }
-
-#ifdef CONFIG_PARAVIRT_XXL
-#include <asm/paravirt.h>
-#else
-#include <linux/errno.h>
-/*
- * Access to machine-specific registers (available on 586 and better only)
- * Note: the rd* operations modify the parameters directly (without using
- * pointer indirection), this allows gcc to optimize better
- */
-
-#define rdmsr(msr, low, high)					\
-do {								\
-	u64 __val = native_read_msr((msr));			\
-	(void)((low) = (u32)__val);				\
-	(void)((high) = (u32)(__val >> 32));			\
-} while (0)
-
-#define rdmsrq(msr, val)			\
-	((val) = native_read_msr((msr)))
-
-/* rdmsr with exception handling */
-#define rdmsr_safe(msr, low, high)				\
-({								\
-	int __err;						\
-	u64 __val = native_read_msr_safe((msr), &__err);	\
-	(*low) = (u32)__val;					\
-	(*high) = (u32)(__val >> 32);				\
-	__err;							\
-})
-
-static inline int rdmsrq_safe(u32 msr, u64 *p)
-{
-	int err;
-
-	*p = native_read_msr_safe(msr, &err);
-	return err;
-}
-#endif	/* !CONFIG_PARAVIRT_XXL */
 
 struct msr __percpu *msrs_alloc(void);
 void msrs_free(struct msr __percpu *msrs);
