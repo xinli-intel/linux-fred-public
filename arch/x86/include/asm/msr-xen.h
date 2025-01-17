@@ -10,10 +10,32 @@
 #include <asm/cpufeature.h>
 #include <asm/shared/msr.h>
 
+extern void asm_xen_read_msr(void);
 extern void asm_xen_write_msr(void);
 extern u64 xen_read_pmc(int counter);
 
 /* No plan to support immediate form MSR instructions in Xen */
+static __always_inline bool __xenpv_rdmsrq(u32 msr, u64 *val, int type)
+{
+	BUG_ON(!cpu_feature_enabled(X86_FEATURE_XENPV));
+
+	asm_inline volatile goto(
+		"1: call asm_xen_read_msr\n\t"
+		_ASM_EXTABLE_TYPE(1b, %l[badmsr], %c[type])	/* For CALL */
+
+		: [val] "=a" (*val), ASM_CALL_CONSTRAINT
+		: "c" (msr), [type] "i" (type)
+		: "rdx"
+		: badmsr);
+
+	return false;
+
+badmsr:
+	*val = 0;
+
+	return true;
+}
+
 static __always_inline bool __xenpv_wrmsrq(u32 msr, u64 val, int type)
 {
 	BUG_ON(!cpu_feature_enabled(X86_FEATURE_XENPV));
@@ -45,6 +67,7 @@ static __always_inline u64 xen_rdpmc(int counter)
 	return xen_read_pmc(counter);
 }
 #else /* !CONFIG_XEN_PV */
+static __always_inline bool __xenpv_rdmsrq(u32 msr, u64 *val, int type) { return false; }
 static __always_inline bool __xenpv_wrmsrq(u32 msr, u64 val, int type) { return false; }
 static __always_inline u64 xen_rdpmc(int counter) { return 0; }
 #endif /* CONFIG_XEN_PV */
