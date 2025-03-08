@@ -435,8 +435,20 @@ SYM_FUNC_START(asm_xen_read_msr)
 	XEN_SAVE_CALLEE_REGS_FOR_MSR
 	mov %ecx, %edi		/* MSR number */
 	call xen_do_read_msr
+	test %dl, %dl		/* %dl=1, i.e., ZF=0, meaning successfully done */
 	XEN_RESTORE_CALLEE_REGS_FOR_MSR
-	FRAME_END
+	jnz 2f
+
+1:	rdmsr
+	_ASM_EXTABLE_FUNC_REWIND(1b, -5, FRAME_OFFSET / (BITS_PER_LONG / 8))
+	shl $0x20, %rdx
+	or %rdx, %rax
+	/*
+	 * The top of the stack points directly at the return address;
+	 * back up by 5 bytes from the return address.
+	 */
+
+2:	FRAME_END
 	RET
 SYM_FUNC_END(asm_xen_read_msr)
 EXPORT_SYMBOL_GPL(asm_xen_read_msr)
