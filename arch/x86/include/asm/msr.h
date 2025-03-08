@@ -304,9 +304,7 @@ static __always_inline int __rdmsr_variable_safe(const u32 msr, u64 *val)
 		"1:\n"
 		ALTERNATIVE(RDMSR_AND_SAVE_RESULT,
 #ifdef CONFIG_XEN_PV
-			    "call asm_xen_read_msr\n\t"
-			    "test %%edx, %%edx\n\t"
-			    "jz %l[badmsr]\n\t",
+			    "call asm_xen_read_msr\n\t",
 #else
 			    "",		/* Unreachable */
 #endif
@@ -339,9 +337,7 @@ static __always_inline int __rdmsr_constant_safe(const u32 msr, u64 *val)
 			      X86_FEATURE_MSR_IMM,
 #ifdef CONFIG_XEN_PV
 			      "mov %[msr], %%ecx\n\t"
-			      "call asm_xen_read_msr\n\t"
-			      "test %%edx, %%edx\n\t"
-			      "jz %l[badmsr]\n\t",
+			      "call asm_xen_read_msr\n\t",
 #else
 			      "",		/* Unreachable */
 #endif
