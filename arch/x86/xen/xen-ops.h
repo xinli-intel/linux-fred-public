@@ -153,6 +153,7 @@ struct xen_rdmsr_ret_type {
 
 extern bool xen_do_write_msr(u32 msr, u64 val);
 extern struct xen_rdmsr_ret_type xen_do_read_msr(u32 msr);
+extern u64 xen_do_read_msr_fixup(u32 msr, u64 val);
 
 extern int xen_panic_handler_init(void);
 

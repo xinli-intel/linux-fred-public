@@ -1024,30 +1024,34 @@ static void xen_write_cr4(unsigned long cr4)
  */
 struct xen_rdmsr_ret_type xen_do_read_msr(u32 msr)
 {
-	struct xen_rdmsr_ret_type ret = { 0, true };
-	int err;
-	bool emulated;
+	struct xen_rdmsr_ret_type ret;
 
-	if (pmu_msr_chk_emulated(msr, &ret.val, true, &emulated) && emulated)
+	ret.done = true;
+
+	if (pmu_msr_chk_emulated(msr, &ret.val, true, &ret.done) && ret.done)
 		return ret;
 
-	ret.val = native_read_msr_safe(msr, &err);
-	ret.done = !err;
+	ret.val = 0;
+	ret.done = false;
+	return ret;
+}
 
+u64 xen_do_read_msr_fixup(u32 msr, u64 val)
+{
 	switch (msr) {
 	case MSR_IA32_APICBASE:
-		ret.val &= ~X2APIC_ENABLE;
+		val &= ~X2APIC_ENABLE;
 		if (smp_processor_id() == 0)
-			ret.val |= MSR_IA32_APICBASE_BSP;
+			val |= MSR_IA32_APICBASE_BSP;
 		else
-			ret.val &= ~MSR_IA32_APICBASE_BSP;
+			val &= ~MSR_IA32_APICBASE_BSP;
 		break;
 
 	default:
 		break;
 	}
 
-	return ret;
+	return val;
 }
 
 static void set_seg(u32 which, u64 base)

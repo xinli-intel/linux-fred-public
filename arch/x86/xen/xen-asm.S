@@ -448,6 +448,12 @@ SYM_FUNC_START(asm_xen_read_msr)
 	 * back up by 5 bytes from the return address.
 	 */
 
+	XEN_SAVE_CALLEE_REGS_FOR_MSR
+	mov %ecx, %edi
+	mov %rax, %rsi
+	call xen_do_read_msr_fixup
+	XEN_RESTORE_CALLEE_REGS_FOR_MSR
+
 2:	FRAME_END
 	RET
 SYM_FUNC_END(asm_xen_read_msr)
