@@ -288,7 +288,9 @@ static __always_inline bool __rdmsr_variable_all(const u32 msr, u64 *val, const 
 			return false;
 	}
 
-	return __native_rdmsr_variable(msr, val, type);
+	return cpu_feature_enabled(X86_FEATURE_XENPV) ?
+	       false :
+	       __native_rdmsr_variable(msr, val, type);
 }
 
 #ifdef CONFIG_X86_64
@@ -331,7 +333,9 @@ static __always_inline bool __rdmsr_constant_all(const u32 msr, u64 *val, const 
 			return false;
 	}
 
-	return __native_rdmsr_constant(msr, val, type);
+	return cpu_feature_enabled(X86_FEATURE_XENPV) ?
+	       false :
+	       __native_rdmsr_constant(msr, val, type);
 }
 #endif
 
@@ -518,7 +522,9 @@ static __always_inline bool __wrmsr_variable_all(const u32 msr, const u64 val, c
 			return false;
 	}
 
-	return __native_wrmsr_variable(msr, val, type);
+	return cpu_feature_enabled(X86_FEATURE_XENPV) ?
+	       false :
+	       __native_wrmsr_variable(msr, val, type);
 }
 
 #ifdef CONFIG_X86_64
@@ -566,7 +572,9 @@ static __always_inline bool __wrmsr_constant_all(const u32 msr, const u64 val, c
 			return false;
 	}
 
-	return __native_wrmsr_constant(msr, val, type);
+	return cpu_feature_enabled(X86_FEATURE_XENPV) ?
+	       false :
+	       __native_wrmsr_constant(msr, val, type);
 }
 #endif
 
