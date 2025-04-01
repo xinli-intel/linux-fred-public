@@ -280,7 +280,7 @@ static inline int wrmsr_safe(unsigned int msr, u32 low, u32 high)
 	__err;							\
 })
 
-static inline int rdmsrl_safe(unsigned int msr, u64 *p)
+static inline int rdmsrq_safe(unsigned int msr, u64 *p)
 {
 	int err;
 
@@ -382,7 +382,7 @@ static inline int wrmsr_safe_on_cpu(unsigned int cpu, u32 msr_no, u32 l, u32 h)
 }
 static inline int rdmsrl_safe_on_cpu(unsigned int cpu, u32 msr_no, u64 *q)
 {
-	return rdmsrl_safe(msr_no, q);
+	return rdmsrq_safe(msr_no, q);
 }
 static inline int wrmsrl_safe_on_cpu(unsigned int cpu, u32 msr_no, u64 q)
 {
