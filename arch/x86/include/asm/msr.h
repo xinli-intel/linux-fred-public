@@ -75,6 +75,32 @@ static inline void do_trace_rdpmc(u32 msr, u64 val, int failed) {}
 
 #ifdef CONFIG_XEN_PV
 extern u64 xen_read_pmc(int counter);
+
+enum pv_msr_action {
+	PV_MSR_PV,
+	PV_MSR_IGNORE,
+};
+
+/* Is there a better header to place this function? */
+static __always_inline enum pv_msr_action get_pv_msr_action(u32 msr)
+{
+	switch (msr) {
+	case MSR_STAR:
+	case MSR_CSTAR:
+	case MSR_LSTAR:
+	case MSR_SYSCALL_MASK:
+	case MSR_IA32_SYSENTER_CS:
+	case MSR_IA32_SYSENTER_ESP:
+	case MSR_IA32_SYSENTER_EIP:
+		/* Fast syscall setup is all done in hypercalls, so
+		   these are all ignored.  Stub them out here to stop
+		   Xen console noise. */
+		return PV_MSR_IGNORE;
+
+	default:
+		return PV_MSR_PV;
+	}
+}
 #endif
 
 /*
