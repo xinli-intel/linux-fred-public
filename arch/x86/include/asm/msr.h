@@ -8,6 +8,7 @@
 
 #include <asm/asm.h>
 #include <asm/errno.h>
+#include <asm/cpufeature.h>
 #include <asm/cpumask.h>
 #include <uapi/asm/msr.h>
 #include <asm/shared/msr.h>
@@ -71,6 +72,54 @@ static inline void do_trace_write_msr(unsigned int msr, u64 val, int failed) {}
 static inline void do_trace_read_msr(unsigned int msr, u64 val, int failed) {}
 static inline void do_trace_rdpmc(unsigned int msr, u64 val, int failed) {}
 #endif
+
+enum pv_msr_action {
+	PV_MSR_NATIVE,
+	PV_MSR_PV,
+	PV_MSR_IGNORE,
+};
+
+static __always_inline enum pv_msr_action get_pv_msr_action(const u32 msr)
+{
+#ifdef CONFIG_XEN_PV
+	if (!__builtin_constant_p(msr)) {
+		/* Is it safe to blindly do so? */
+		return PV_MSR_NATIVE;
+	}
+
+	switch (msr) {
+	case MSR_FS_BASE:
+	case MSR_KERNEL_GS_BASE:
+	case MSR_GS_BASE:
+	case MSR_CORE_PERF_GLOBAL_OVF_CTRL:
+	case MSR_CORE_PERF_GLOBAL_STATUS:
+	case MSR_CORE_PERF_GLOBAL_CTRL:
+	case MSR_CORE_PERF_FIXED_CTR_CTRL:
+	case MSR_IA32_APICBASE:
+		return PV_MSR_PV;
+
+	case MSR_STAR:
+	case MSR_CSTAR:
+	case MSR_LSTAR:
+	case MSR_SYSCALL_MASK:
+	case MSR_IA32_SYSENTER_CS:
+	case MSR_IA32_SYSENTER_ESP:
+	case MSR_IA32_SYSENTER_EIP:
+		return PV_MSR_IGNORE;
+
+	default:
+		/*
+		 * MSR access instructions RDMSR/WRMSR/WRMSRNS will be used.
+		 *
+		 * The hypervisor will trap and inject #GP into the guest and
+		 * the MSR access instruction will be skipped.
+		 */
+		return PV_MSR_NATIVE;
+	}
+#else
+	return PV_MSR_NATIVE;
+#endif
+}
 
 /*
  * __rdmsr() and __wrmsr() are the two primitives which are the bare minimum MSR
