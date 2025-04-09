@@ -165,7 +165,7 @@ static bool ex_handler_uaccess(const struct exception_table_entry *fixup,
 }
 
 static bool ex_handler_msr(const struct exception_table_entry *fixup,
-			   struct pt_regs *regs, bool wrmsr, bool safe, int reg)
+			   struct pt_regs *regs, bool wrmsr, bool safe)
 {
 	bool imm_insn = is_msr_imm_insn((void *)regs->ip);
 	u32 msr;
@@ -206,17 +206,6 @@ static bool ex_handler_msr(const struct exception_table_entry *fixup,
 			msr, regs->ip, (void *)regs->ip);
 		show_stack_regs(regs);
 	}
-
-	if (!wrmsr) {
-		/* Pretend that the read succeeded and returned 0. */
-		regs->ax = 0;
-
-		if (!imm_insn)
-			regs->dx = 0;
-	}
-
-	if (safe)
-		*pt_regs_nr(regs, reg) = -EIO;
 
 	return ex_handler_default(fixup, regs);
 }
@@ -395,13 +384,13 @@ int fixup_exception(struct pt_regs *regs, int trapnr, unsigned long error_code,
 		case EX_TYPE_BPF:
 			return ex_handler_bpf(e, regs);
 		case EX_TYPE_WRMSR:
-			return ex_handler_msr(e, regs, true, false, reg);
+			return ex_handler_msr(e, regs, true, false);
 		case EX_TYPE_RDMSR:
-			return ex_handler_msr(e, regs, false, false, reg);
+			return ex_handler_msr(e, regs, false, false);
 		case EX_TYPE_WRMSR_SAFE:
-			return ex_handler_msr(e, regs, true, true, reg);
+			return ex_handler_msr(e, regs, true, true);
 		case EX_TYPE_RDMSR_SAFE:
-			return ex_handler_msr(e, regs, false, true, reg);
+			return ex_handler_msr(e, regs, false, true);
 		case EX_TYPE_WRMSR_IN_MCE:
 			ex_handler_msr_mce(regs, true);
 			break;
