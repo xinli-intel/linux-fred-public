@@ -323,7 +323,7 @@ static u64 xen_amd_read_pmc(int counter)
 		int err;
 
 		msr = amd_counters_base + (counter * amd_msr_step);
-		return native_read_msr_safe(msr, &err);
+		return native_rdmsrq_safe(msr, &err);
 	}
 
 	ctxt = &xenpmu_data->pmu.c.amd;
@@ -348,7 +348,7 @@ static u64 xen_intel_read_pmc(int counter)
 		else
 			msr = MSR_IA32_PERFCTR0 + counter;
 
-		return native_read_msr_safe(msr, &err);
+		return native_rdmsrq_safe(msr, &err);
 	}
 
 	ctxt = &xenpmu_data->pmu.c.intel;

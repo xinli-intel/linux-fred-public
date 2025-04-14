@@ -482,7 +482,7 @@ static void svm_init_erratum_383(void)
 		return;
 
 	/* Use _safe variants to not break nested virtualization */
-	val = native_read_msr_safe(MSR_AMD64_DC_CFG, &err);
+	val = native_rdmsrq_safe(MSR_AMD64_DC_CFG, &err);
 	if (err)
 		return;
 
@@ -651,9 +651,9 @@ static int svm_enable_virtualization_cpu(void)
 		uint64_t len, status = 0;
 		int err;
 
-		len = native_read_msr_safe(MSR_AMD64_OSVW_ID_LENGTH, &err);
+		len = native_rdmsrq_safe(MSR_AMD64_OSVW_ID_LENGTH, &err);
 		if (!err)
-			status = native_read_msr_safe(MSR_AMD64_OSVW_STATUS,
+			status = native_rdmsrq_safe(MSR_AMD64_OSVW_STATUS,
 						      &err);
 
 		if (err)
@@ -2151,7 +2151,7 @@ static bool is_erratum_383(void)
 	if (!erratum_383_found)
 		return false;
 
-	value = native_read_msr_safe(MSR_IA32_MC0_STATUS, &err);
+	value = native_rdmsrq_safe(MSR_IA32_MC0_STATUS, &err);
 	if (err)
 		return false;
 
@@ -2165,7 +2165,7 @@ static bool is_erratum_383(void)
 	for (i = 0; i < 6; ++i)
 		native_wrmsrq_safe(MSR_IA32_MCx_STATUS(i), 0);
 
-	value = native_read_msr_safe(MSR_IA32_MCG_STATUS, &err);
+	value = native_rdmsrq_safe(MSR_IA32_MCG_STATUS, &err);
 	if (!err) {
 		value &= ~(1ULL << 2);
 		native_wrmsrq_safe(MSR_IA32_MCG_STATUS, value);
