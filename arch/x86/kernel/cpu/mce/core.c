@@ -1321,7 +1321,7 @@ static noinstr bool mce_check_crashing_cpu(void)
 		}
 
 		if (mcgstatus & MCG_STATUS_RIPV) {
-			native_wrmsrq(MSR_IA32_MCG_STATUS, 0);
+			native_wrmsrq_no_trace(MSR_IA32_MCG_STATUS, 0);
 			return true;
 		}
 	}
