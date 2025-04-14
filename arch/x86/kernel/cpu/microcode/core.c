@@ -84,7 +84,7 @@ static bool amd_check_current_patch_level(void)
 	u32 lvl, dummy, i;
 	u32 *levels;
 
-	native_rdmsr(MSR_AMD64_PATCH_LEVEL, lvl, dummy);
+	native_rdmsr_no_trace(MSR_AMD64_PATCH_LEVEL, lvl, dummy);
 
 	levels = final_levels;
 
