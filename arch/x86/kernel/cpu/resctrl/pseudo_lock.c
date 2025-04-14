@@ -163,7 +163,7 @@ int resctrl_arch_pseudo_lock_fn(void *_plr)
 	 * cache.
 	 */
 	saved_msr = native_rdmsrq(MSR_MISC_FEATURE_CONTROL);
-	native_wrmsrq(MSR_MISC_FEATURE_CONTROL, prefetch_disable_bits);
+	native_wrmsrq_no_trace(MSR_MISC_FEATURE_CONTROL, prefetch_disable_bits);
 	closid_p = this_cpu_read(pqr_state.cur_closid);
 	rmid_p = this_cpu_read(pqr_state.cur_rmid);
 	mem_r = plr->kmem;
