@@ -88,7 +88,7 @@ static bool amd_check_current_patch_level(void)
 	if (x86_cpuid_vendor() != X86_VENDOR_AMD)
 		return false;
 
-	native_rdmsr(MSR_AMD64_PATCH_LEVEL, lvl, dummy);
+	native_rdmsr_no_trace(MSR_AMD64_PATCH_LEVEL, lvl, dummy);
 
 	levels = final_levels;
 

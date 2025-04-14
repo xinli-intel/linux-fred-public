@@ -78,7 +78,7 @@ void intel_collect_cpu_info(struct cpu_signature *sig)
 		unsigned int val[2];
 
 		/* get processor flags from MSR 0x17 */
-		native_rdmsr(MSR_IA32_PLATFORM_ID, val[0], val[1]);
+		native_rdmsr_no_trace(MSR_IA32_PLATFORM_ID, val[0], val[1]);
 		sig->pf = 1 << ((val[1] >> 18) & 7);
 	}
 }

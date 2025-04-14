@@ -71,7 +71,7 @@ static inline u32 intel_get_microcode_revision(void)
 	native_cpuid_eax(1);
 
 	/* get the current revision from MSR 0x8B */
-	native_rdmsr(MSR_IA32_UCODE_REV, dummy, rev);
+	native_rdmsr_no_trace(MSR_IA32_UCODE_REV, dummy, rev);
 
 	return rev;
 }
