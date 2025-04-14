@@ -164,7 +164,7 @@ static __always_inline enum pv_msr_action get_pv_msr_action(u32 msr)
  *        native_rdmsrq_no_trace()    native_read_msr_safe()         |
  *                   /      \                                        |
  *                  /        \                                       |
- * native_rdmsr_no_trace()    native_read_msr()                      |
+ * native_rdmsr_no_trace()    native_rdmsrq()                        |
  *                                                                   |
  *                                                                   |
  *                                                                   |
@@ -263,7 +263,7 @@ do {							\
 	(void)((high) = (u32)(__val >> 32));		\
 } while (0)
 
-static inline u64 native_read_msr(u32 msr)
+static inline u64 native_rdmsrq(u32 msr)
 {
 	u64 val = native_rdmsrq_no_trace(msr);
 
