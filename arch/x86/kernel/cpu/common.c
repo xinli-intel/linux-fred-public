@@ -164,7 +164,7 @@ static void ppin_init(struct cpuinfo_x86 *c)
 
 	/* Is the enable bit set? */
 	if (val & 2UL) {
-		c->ppin = native_rdmsrq(info->msr_ppin);
+		c->ppin = native_rdmsrq_no_trace(info->msr_ppin);
 		set_cpu_cap(c, info->feature);
 		return;
 	}

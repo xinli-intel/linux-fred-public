@@ -162,7 +162,7 @@ int resctrl_arch_pseudo_lock_fn(void *_plr)
 	 * the buffer and evict pseudo-locked memory read earlier from the
 	 * cache.
 	 */
-	saved_msr = native_rdmsrq(MSR_MISC_FEATURE_CONTROL);
+	saved_msr = native_rdmsrq_no_trace(MSR_MISC_FEATURE_CONTROL);
 	native_wrmsrq_no_trace(MSR_MISC_FEATURE_CONTROL, prefetch_disable_bits);
 	closid_p = this_cpu_read(pqr_state.cur_closid);
 	rmid_p = this_cpu_read(pqr_state.cur_rmid);

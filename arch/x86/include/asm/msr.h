@@ -96,7 +96,7 @@ static __always_inline bool is_msr_imm_insn(void *ip)
  *                         __native_rdmsrq()   -----------------------
  *                            /     \                                |
  *                           /       \                               |
- *               native_rdmsrq()    native_read_msr_safe()           |
+ *        native_rdmsrq_no_trace()    native_read_msr_safe()         |
  *                   /    \                                          |
  *                  /      \                                         |
  *      native_rdmsr()    native_read_msr()                          |
@@ -187,7 +187,7 @@ static __always_inline bool __native_rdmsrq(u32 msr, u64 *val, int type)
 	return __native_rdmsrq_variable(msr, val, type);
 }
 
-static __always_inline u64 native_rdmsrq(u32 msr)
+static __always_inline u64 native_rdmsrq_no_trace(u32 msr)
 {
 	u64 val = 0;
 
@@ -197,14 +197,14 @@ static __always_inline u64 native_rdmsrq(u32 msr)
 
 #define native_rdmsr(msr, low, high)			\
 do {							\
-	u64 __val = native_rdmsrq(msr);			\
+	u64 __val = native_rdmsrq_no_trace(msr);	\
 	(void)((low) = (u32)__val);			\
 	(void)((high) = (u32)(__val >> 32));		\
 } while (0)
 
 static inline u64 native_read_msr(u32 msr)
 {
-	u64 val = native_rdmsrq(msr);
+	u64 val = native_rdmsrq_no_trace(msr);
 
 	if (tracepoint_enabled(read_msr))
 		do_trace_read_msr(msr, val, 0);
