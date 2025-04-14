@@ -306,7 +306,7 @@ void hv_set_non_nested_msr(unsigned int reg, u64 value);
 
 static __always_inline u64 hv_raw_get_msr(unsigned int reg)
 {
-	return native_rdmsrq(reg);
+	return native_rdmsrq_no_trace(reg);
 }
 int hv_apicid_to_vp_index(u32 apic_id);
 
