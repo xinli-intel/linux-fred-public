@@ -140,7 +140,7 @@ static __always_inline bool is_msr_imm_insn(void *ip)
  *                         __native_rdmsrq()   -----------------------
  *                            /     \                                |
  *                           /       \                               |
- *        native_rdmsrq_no_trace()    native_read_msr_safe()         |
+ *        native_rdmsrq_no_trace()    native_rdmsrq_safe()           |
  *                   /      \                                        |
  *                  /        \                                       |
  * native_rdmsr_no_trace()    native_rdmsrq()                        |
@@ -256,7 +256,7 @@ static inline u64 native_rdmsrq(u32 msr)
 	return val;
 }
 
-static inline int native_read_msr_safe(u32 msr, u64 *val)
+static inline int native_rdmsrq_safe(u32 msr, u64 *val)
 {
 	int err;
 
