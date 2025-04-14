@@ -280,7 +280,7 @@ static __always_inline int rdmsrq_safe(u32 msr, u64 *val)
  *        native_wrmsrq_no_trace()    native_write_msr_safe()        |
  *                   /        \                                      |
  *                  /          \                                     |
- * native_wrmsr_no_trace()    native_write_msr()                     |
+ * native_wrmsr_no_trace()    native_wrmsrq()                        |
  *                                                                   |
  *                                                                   |
  *                                                                   |
@@ -383,7 +383,7 @@ static __always_inline void native_wrmsr_no_trace(u32 msr, u32 low, u32 high)
 	native_wrmsrq_no_trace(msr, (u64)high << 32 | low);
 }
 
-static inline void notrace native_write_msr(u32 msr, u64 val)
+static inline void notrace native_wrmsrq(u32 msr, u64 val)
 {
 	native_wrmsrq_no_trace(msr, val);
 
