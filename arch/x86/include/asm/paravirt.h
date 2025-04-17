@@ -239,12 +239,10 @@ static inline int rdmsrq_safe(unsigned msr, u64 *p)
 	return err;
 }
 
-static inline u64 paravirt_read_pmc(int counter)
+static __always_inline u64 rdpmcq(int counter)
 {
 	return PVOP_CALL1(u64, cpu.read_pmc, counter);
 }
-
-#define rdpmcq(counter, val) ((val) = paravirt_read_pmc(counter))
 
 static inline void paravirt_alloc_ldt(struct desc_struct *ldt, unsigned entries)
 {

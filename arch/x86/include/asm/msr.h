@@ -233,7 +233,10 @@ static inline int rdmsrq_safe(u32 msr, u64 *p)
 	return err;
 }
 
-#define rdpmcq(counter, val) ((val) = native_read_pmc(counter))
+static __always_inline u64 rdpmcq(int counter)
+{
+	return native_read_pmc(counter);
+}
 
 #endif	/* !CONFIG_PARAVIRT_XXL */
 

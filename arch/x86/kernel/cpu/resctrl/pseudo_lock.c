@@ -1018,8 +1018,8 @@ static int measure_residency_fn(struct perf_event_attr *miss_attr,
 	 * used in L1 cache, second to capture accurate value that does not
 	 * include cache misses incurred because of instruction loads.
 	 */
-	rdpmcq(hit_pmcnum, hits_before);
-	rdpmcq(miss_pmcnum, miss_before);
+	hits_before = rdpmcq(hit_pmcnum);
+	miss_before = rdpmcq(miss_pmcnum);
 	/*
 	 * From SDM: Performing back-to-back fast reads are not guaranteed
 	 * to be monotonic.
@@ -1027,8 +1027,8 @@ static int measure_residency_fn(struct perf_event_attr *miss_attr,
 	 * before proceeding.
 	 */
 	rmb();
-	rdpmcq(hit_pmcnum, hits_before);
-	rdpmcq(miss_pmcnum, miss_before);
+	hits_before = rdpmcq(hit_pmcnum);
+	miss_before = rdpmcq(miss_pmcnum);
 	/*
 	 * Use LFENCE to ensure all previous instructions are retired
 	 * before proceeding.
@@ -1050,8 +1050,8 @@ static int measure_residency_fn(struct perf_event_attr *miss_attr,
 	 * before proceeding.
 	 */
 	rmb();
-	rdpmcq(hit_pmcnum, hits_after);
-	rdpmcq(miss_pmcnum, miss_after);
+	hits_after = rdpmcq(hit_pmcnum);
+	miss_after = rdpmcq(miss_pmcnum);
 	/*
 	 * Use LFENCE to ensure all previous instructions are retired
 	 * before proceeding.
