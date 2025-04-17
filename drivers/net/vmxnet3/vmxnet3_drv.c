@@ -151,7 +151,7 @@ static u64
 vmxnet3_get_cycles(int pmc)
 {
 #ifdef CONFIG_X86
-	return native_read_pmc(pmc);
+	return native_rdpmc(pmc);
 #else
 	return 0;
 #endif
