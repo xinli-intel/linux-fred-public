@@ -101,8 +101,6 @@ struct pv_cpu_ops {
 	u64 (*read_msr_safe)(unsigned int msr, int *err);
 	int (*write_msr_safe)(unsigned int msr, unsigned low, unsigned high);
 
-	u64 (*read_pmc)(int counter);
-
 	void (*start_context_switch)(struct task_struct *prev);
 	void (*end_context_switch)(struct task_struct *next);
 #endif
