@@ -8,6 +8,7 @@
 
 #include <asm/asm.h>
 #include <asm/errno.h>
+#include <asm/cpufeature.h>
 #include <asm/cpumask.h>
 #include <uapi/asm/msr.h>
 #include <asm/shared/msr.h>
@@ -54,6 +55,10 @@ extern void do_trace_rdpmc(u32 msr, u64 val, int failed);
 static inline void do_trace_write_msr(u32 msr, u64 val, int failed) {}
 static inline void do_trace_read_msr(u32 msr, u64 val, int failed) {}
 static inline void do_trace_rdpmc(u32 msr, u64 val, int failed) {}
+#endif
+
+#ifdef CONFIG_XEN_PV
+extern u64 xen_read_pmc(int counter);
 #endif
 
 /*
@@ -177,14 +182,30 @@ static inline int notrace native_write_msr_safe(u32 msr, u64 val)
 extern int rdmsr_safe_regs(u32 regs[8]);
 extern int wrmsr_safe_regs(u32 regs[8]);
 
-static inline u64 native_read_pmc(int counter)
+static __always_inline u64 native_rdpmc(int counter)
 {
 	EAX_EDX_DECLARE_ARGS(val, low, high);
 
-	asm volatile("rdpmc" : EAX_EDX_RET(val, low, high) : "c" (counter));
+	asm_inline volatile("rdpmc" : EAX_EDX_RET(val, low, high) : "c" (counter));
+
 	if (tracepoint_enabled(rdpmc))
 		do_trace_rdpmc(counter, EAX_EDX_VAL(val, low, high), 0);
+
 	return EAX_EDX_VAL(val, low, high);
+}
+
+static __always_inline u64 rdpmc(int counter)
+{
+#ifdef CONFIG_XEN_PV
+	if (cpu_feature_enabled(X86_FEATURE_XENPV))
+		return xen_read_pmc(counter);
+#endif
+
+	/*
+	 * 1) When built with !CONFIG_XEN_PV.
+	 * 2) When built with CONFIG_XEN_PV but not running on Xen hypervisor.
+	 */
+	return native_rdpmc(counter);
 }
 
 #ifdef CONFIG_PARAVIRT_XXL
@@ -237,12 +258,6 @@ static inline int rdmsrq_safe(u32 msr, u64 *p)
 {
 	return native_read_msr_safe(msr, p);
 }
-
-static __always_inline u64 rdpmc(int counter)
-{
-	return native_read_pmc(counter);
-}
-
 #endif	/* !CONFIG_PARAVIRT_XXL */
 
 /* Instruction opcode for WRMSRNS supported in binutils >= 2.40 */
