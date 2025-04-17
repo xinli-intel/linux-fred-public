@@ -237,11 +237,6 @@ static __always_inline int rdmsrq_safe(u32 msr, u64 *p)
 	return paravirt_read_msr_safe(msr, p);
 }
 
-static __always_inline u64 rdpmc(int counter)
-{
-	return PVOP_CALL1(u64, cpu.read_pmc, counter);
-}
-
 static inline void paravirt_alloc_ldt(struct desc_struct *ldt, unsigned entries)
 {
 	PVOP_VCALL2(cpu.alloc_ldt, ldt, entries);
