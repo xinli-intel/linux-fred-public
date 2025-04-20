@@ -370,13 +370,40 @@ static int msr_to_offset(u32 msr)
 
 void ex_handler_msr_mce(struct pt_regs *regs, bool wrmsr)
 {
+	bool imm_insn = is_msr_imm_insn((void *)regs->ip);
+	u32 msr;
+
+	if (imm_insn)
+		/*
+		 * The 32-bit immediate specifying a MSR is encoded into
+		 * byte 5 ~ 8 of an immediate form MSR instruction.
+		 */
+		msr = *(u32 *)(regs->ip + 5);
+	else
+		msr = (u32)regs->cx;
+
 	if (wrmsr) {
-		pr_emerg("MSR access error: WRMSR to 0x%x (tried to write 0x%08x%08x) at rIP: 0x%lx (%pS)\n",
-			 (unsigned int)regs->cx, (unsigned int)regs->dx, (unsigned int)regs->ax,
-			 regs->ip, (void *)regs->ip);
+		/*
+		 * To maintain consistency with existing RDMSR and WRMSR(NS) instructions,
+		 * the register operand for immediate form MSR instructions is ALWAYS
+		 * encoded as RAX in <asm/msr.h> for reading or writing the MSR value.
+		 */
+		u64 msr_val = regs->ax;
+
+		if (!imm_insn) {
+			/*
+			 * On processors that support the Intel 64 architecture, the
+			 * high-order 32 bits of each of RAX and RDX are ignored.
+			 */
+			msr_val &= 0xffffffff;
+			msr_val |= (u64)regs->dx << 32;
+		}
+
+		pr_emerg("MSR access error: WRMSR to 0x%x (tried to write 0x%016llx) at rIP: 0x%lx (%pS)\n",
+			 msr, msr_val, regs->ip, (void *)regs->ip);
 	} else {
 		pr_emerg("MSR access error: RDMSR from 0x%x at rIP: 0x%lx (%pS)\n",
-			 (unsigned int)regs->cx, regs->ip, (void *)regs->ip);
+			 msr, regs->ip, (void *)regs->ip);
 	}
 
 	show_stack_regs(regs);
@@ -390,7 +417,7 @@ void ex_handler_msr_mce(struct pt_regs *regs, bool wrmsr)
 /* MSR access wrappers used for error injection */
 noinstr u64 mce_rdmsrq(u32 msr)
 {
-	EAX_EDX_DECLARE_ARGS(val, low, high);
+	u64 val;
 
 	if (__this_cpu_read(injectm.finished)) {
 		int offset;
@@ -414,19 +441,13 @@ noinstr u64 mce_rdmsrq(u32 msr)
 	 * architectural violation and needs to be reported to hw vendor. Panic
 	 * the box to not allow any further progress.
 	 */
-	asm volatile("1: rdmsr\n"
-		     "2:\n"
-		     _ASM_EXTABLE_TYPE(1b, 2b, EX_TYPE_RDMSR_IN_MCE)
-		     : EAX_EDX_RET(val, low, high) : "c" (msr));
+	__native_rdmsrq(msr, &val, EX_TYPE_RDMSR_IN_MCE);
 
-
-	return EAX_EDX_VAL(val, low, high);
+	return val;
 }
 
 static noinstr void mce_wrmsrq(u32 msr, u64 v)
 {
-	u32 low, high;
-
 	if (__this_cpu_read(injectm.finished)) {
 		int offset;
 
@@ -441,14 +462,8 @@ static noinstr void mce_wrmsrq(u32 msr, u64 v)
 		return;
 	}
 
-	low  = (u32)v;
-	high = (u32)(v >> 32);
-
 	/* See comment in mce_rdmsrq() */
-	asm volatile("1: wrmsr\n"
-		     "2:\n"
-		     _ASM_EXTABLE_TYPE(1b, 2b, EX_TYPE_WRMSR_IN_MCE)
-		     : : "c" (msr), "a"(low), "d" (high) : "memory");
+	__native_wrmsrq(msr, v, EX_TYPE_WRMSR_IN_MCE);
 }
 
 /*
