@@ -580,7 +580,7 @@ static void kvm_on_user_return(struct user_return_notifier *urn)
 	for (slot = 0; slot < kvm_nr_uret_msrs; ++slot) {
 		values = &msrs->values[slot];
 		if (values->host != values->curr) {
-			wrmsrq(kvm_uret_msrs_list[slot], values->host);
+			native_wrmsrq(kvm_uret_msrs_list[slot], values->host);
 			values->curr = values->host;
 		}
 	}
@@ -592,10 +592,10 @@ static int kvm_probe_user_return_msr(u32 msr)
 	int ret;
 
 	preempt_disable();
-	ret = rdmsrq_safe(msr, &val);
+	ret = native_rdmsrq_safe(msr, &val);
 	if (ret)
 		goto out;
-	ret = wrmsrq_safe(msr, val);
+	ret = native_wrmsrq_safe(msr, val);
 out:
 	preempt_enable();
 	return ret;
@@ -632,7 +632,7 @@ static void kvm_user_return_msr_cpu_online(void)
 	int i;
 
 	for (i = 0; i < kvm_nr_uret_msrs; ++i) {
-		rdmsrq_safe(kvm_uret_msrs_list[i], &value);
+		native_rdmsrq_safe(kvm_uret_msrs_list[i], &value);
 		msrs->values[i].host = value;
 		msrs->values[i].curr = value;
 	}
@@ -655,7 +655,7 @@ int kvm_set_user_return_msr(unsigned slot, u64 value, u64 mask)
 	value = (value & mask) | (msrs->values[slot].host & ~mask);
 	if (value == msrs->values[slot].curr)
 		return 0;
-	err = wrmsrq_safe(kvm_uret_msrs_list[slot], value);
+	err = native_wrmsrq_safe(kvm_uret_msrs_list[slot], value);
 	if (err)
 		return 1;
 
@@ -1190,7 +1190,7 @@ void kvm_load_guest_xsave_state(struct kvm_vcpu *vcpu)
 
 		if (guest_cpu_cap_has(vcpu, X86_FEATURE_XSAVES) &&
 		    vcpu->arch.ia32_xss != kvm_host.xss)
-			wrmsrq(MSR_IA32_XSS, vcpu->arch.ia32_xss);
+			native_wrmsrq(MSR_IA32_XSS, vcpu->arch.ia32_xss);
 	}
 
 	if (cpu_feature_enabled(X86_FEATURE_PKU) &&
@@ -1221,7 +1221,7 @@ void kvm_load_host_xsave_state(struct kvm_vcpu *vcpu)
 
 		if (guest_cpu_cap_has(vcpu, X86_FEATURE_XSAVES) &&
 		    vcpu->arch.ia32_xss != kvm_host.xss)
-			wrmsrq(MSR_IA32_XSS, kvm_host.xss);
+			native_wrmsrq(MSR_IA32_XSS, kvm_host.xss);
 	}
 
 }
@@ -1678,7 +1678,7 @@ static int kvm_get_feature_msr(struct kvm_vcpu *vcpu, u32 index, u64 *data,
 		*data = MSR_PLATFORM_INFO_CPUID_FAULT;
 		break;
 	case MSR_IA32_UCODE_REV:
-		rdmsrq_safe(index, data);
+		native_rdmsrq_safe(index, data);
 		break;
 	default:
 		return kvm_x86_call(get_feature_msr)(index, data);
@@ -3845,7 +3845,7 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		if (!data)
 			break;
 
-		wrmsrq(MSR_IA32_PRED_CMD, data);
+		native_wrmsrq(MSR_IA32_PRED_CMD, data);
 		break;
 	}
 	case MSR_IA32_FLUSH_CMD:
@@ -3858,7 +3858,7 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		if (!data)
 			break;
 
-		wrmsrq(MSR_IA32_FLUSH_CMD, L1D_FLUSH);
+		native_wrmsrq(MSR_IA32_FLUSH_CMD, L1D_FLUSH);
 		break;
 	case MSR_EFER:
 		return set_efer(vcpu, msr_info);
@@ -7422,9 +7422,9 @@ static void kvm_probe_feature_msr(u32 msr_index)
 
 static void kvm_probe_msr_to_save(u32 msr_index)
 {
-	u32 dummy[2];
+	u64 dummy;
 
-	if (rdmsr_safe(msr_index, &dummy[0], &dummy[1]))
+	if (native_rdmsrq_safe(msr_index, &dummy))
 		return;
 
 	/*
@@ -9782,7 +9782,7 @@ int kvm_x86_vendor_init(struct kvm_x86_init_ops *ops)
 	 * with an exception.  PAT[0] is set to WB on RESET and also by the
 	 * kernel, i.e. failure indicates a kernel bug or broken firmware.
 	 */
-	if (rdmsrq_safe(MSR_IA32_CR_PAT, &host_pat) ||
+	if (native_rdmsrq_safe(MSR_IA32_CR_PAT, &host_pat) ||
 	    (host_pat & GENMASK(2, 0)) != 6) {
 		pr_err("host PAT[0] is not WB\n");
 		return -EIO;
@@ -9818,15 +9818,15 @@ int kvm_x86_vendor_init(struct kvm_x86_init_ops *ops)
 	kvm_caps.supported_quirks = KVM_X86_VALID_QUIRKS;
 	kvm_caps.inapplicable_quirks = KVM_X86_CONDITIONAL_QUIRKS;
 
-	rdmsrq_safe(MSR_EFER, &kvm_host.efer);
+	native_rdmsrq_safe(MSR_EFER, &kvm_host.efer);
 
 	if (boot_cpu_has(X86_FEATURE_XSAVES))
-		rdmsrq(MSR_IA32_XSS, kvm_host.xss);
+		kvm_host.xss = native_rdmsrq(MSR_IA32_XSS);
 
 	kvm_init_pmu_capability(ops->pmu_ops);
 
 	if (boot_cpu_has(X86_FEATURE_ARCH_CAPABILITIES))
-		rdmsrq(MSR_IA32_ARCH_CAPABILITIES, kvm_host.arch_capabilities);
+		kvm_host.arch_capabilities = native_rdmsrq(MSR_IA32_ARCH_CAPABILITIES);
 
 	r = ops->hardware_setup();
 	if (r != 0)
@@ -11031,7 +11031,7 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 		switch_fpu_return();
 
 	if (vcpu->arch.guest_fpu.xfd_err)
-		wrmsrq(MSR_IA32_XFD_ERR, vcpu->arch.guest_fpu.xfd_err);
+		native_wrmsrq(MSR_IA32_XFD_ERR, vcpu->arch.guest_fpu.xfd_err);
 
 	if (unlikely(vcpu->arch.switch_db_regs &&
 		     !(vcpu->arch.switch_db_regs & KVM_DEBUGREG_AUTO_SWITCH))) {
@@ -11119,7 +11119,7 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 	kvm_x86_call(handle_exit_irqoff)(vcpu);
 
 	if (vcpu->arch.guest_fpu.xfd_err)
-		wrmsrq(MSR_IA32_XFD_ERR, 0);
+		native_wrmsrq(MSR_IA32_XFD_ERR, 0);
 
 	/*
 	 * Consume any pending interrupts, including the possible source of
@@ -13732,12 +13732,12 @@ int kvm_spec_ctrl_test_value(u64 value)
 
 	local_irq_save(flags);
 
-	if (rdmsrq_safe(MSR_IA32_SPEC_CTRL, &saved_value))
+	if (native_rdmsrq_safe(MSR_IA32_SPEC_CTRL, &saved_value))
 		ret = 1;
-	else if (wrmsrq_safe(MSR_IA32_SPEC_CTRL, value))
+	else if (native_wrmsrq_safe(MSR_IA32_SPEC_CTRL, value))
 		ret = 1;
 	else
-		wrmsrq(MSR_IA32_SPEC_CTRL, saved_value);
+		native_wrmsrq(MSR_IA32_SPEC_CTRL, saved_value);
 
 	local_irq_restore(flags);
 
