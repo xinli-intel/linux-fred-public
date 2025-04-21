@@ -1071,7 +1071,7 @@ static void add_atomic_switch_msr(struct vcpu_vmx *vmx, unsigned msr,
 		 * provide that period, so a CPU could write host's record into
 		 * guest's memory.
 		 */
-		wrmsrq(MSR_IA32_PEBS_ENABLE, 0);
+		native_wrmsrq(MSR_IA32_PEBS_ENABLE, 0);
 	}
 
 	i = vmx_find_loadstore_msr_slot(&m->guest, msr);
@@ -1200,13 +1200,13 @@ static inline void pt_load_msr(struct pt_ctx *ctx, u32 addr_range)
 {
 	u32 i;
 
-	wrmsrq(MSR_IA32_RTIT_STATUS, ctx->status);
-	wrmsrq(MSR_IA32_RTIT_OUTPUT_BASE, ctx->output_base);
-	wrmsrq(MSR_IA32_RTIT_OUTPUT_MASK, ctx->output_mask);
-	wrmsrq(MSR_IA32_RTIT_CR3_MATCH, ctx->cr3_match);
+	native_wrmsrq(MSR_IA32_RTIT_STATUS, ctx->status);
+	native_wrmsrq(MSR_IA32_RTIT_OUTPUT_BASE, ctx->output_base);
+	native_wrmsrq(MSR_IA32_RTIT_OUTPUT_MASK, ctx->output_mask);
+	native_wrmsrq(MSR_IA32_RTIT_CR3_MATCH, ctx->cr3_match);
 	for (i = 0; i < addr_range; i++) {
-		wrmsrq(MSR_IA32_RTIT_ADDR0_A + i * 2, ctx->addr_a[i]);
-		wrmsrq(MSR_IA32_RTIT_ADDR0_B + i * 2, ctx->addr_b[i]);
+		native_wrmsrq(MSR_IA32_RTIT_ADDR0_A + i * 2, ctx->addr_a[i]);
+		native_wrmsrq(MSR_IA32_RTIT_ADDR0_B + i * 2, ctx->addr_b[i]);
 	}
 }
 
@@ -1214,13 +1214,13 @@ static inline void pt_save_msr(struct pt_ctx *ctx, u32 addr_range)
 {
 	u32 i;
 
-	rdmsrq(MSR_IA32_RTIT_STATUS, ctx->status);
-	rdmsrq(MSR_IA32_RTIT_OUTPUT_BASE, ctx->output_base);
-	rdmsrq(MSR_IA32_RTIT_OUTPUT_MASK, ctx->output_mask);
-	rdmsrq(MSR_IA32_RTIT_CR3_MATCH, ctx->cr3_match);
+	ctx->status = native_rdmsrq(MSR_IA32_RTIT_STATUS);
+	ctx->output_base = native_rdmsrq(MSR_IA32_RTIT_OUTPUT_BASE);
+	ctx->output_mask = native_rdmsrq(MSR_IA32_RTIT_OUTPUT_MASK);
+	ctx->cr3_match = native_rdmsrq(MSR_IA32_RTIT_CR3_MATCH);
 	for (i = 0; i < addr_range; i++) {
-		rdmsrq(MSR_IA32_RTIT_ADDR0_A + i * 2, ctx->addr_a[i]);
-		rdmsrq(MSR_IA32_RTIT_ADDR0_B + i * 2, ctx->addr_b[i]);
+		ctx->addr_a[i] = native_rdmsrq(MSR_IA32_RTIT_ADDR0_A + i * 2);
+		ctx->addr_b[i] = native_rdmsrq(MSR_IA32_RTIT_ADDR0_B + i * 2);
 	}
 }
 
@@ -1233,9 +1233,9 @@ static void pt_guest_enter(struct vcpu_vmx *vmx)
 	 * GUEST_IA32_RTIT_CTL is already set in the VMCS.
 	 * Save host state before VM entry.
 	 */
-	rdmsrq(MSR_IA32_RTIT_CTL, vmx->pt_desc.host.ctl);
+	vmx->pt_desc.host.ctl = native_rdmsrq(MSR_IA32_RTIT_CTL);
 	if (vmx->pt_desc.guest.ctl & RTIT_CTL_TRACEEN) {
-		wrmsrq(MSR_IA32_RTIT_CTL, 0);
+		native_wrmsrq(MSR_IA32_RTIT_CTL, 0);
 		pt_save_msr(&vmx->pt_desc.host, vmx->pt_desc.num_address_ranges);
 		pt_load_msr(&vmx->pt_desc.guest, vmx->pt_desc.num_address_ranges);
 	}
@@ -1256,7 +1256,7 @@ static void pt_guest_exit(struct vcpu_vmx *vmx)
 	 * i.e. RTIT_CTL is always cleared on VM-Exit.  Restore it if necessary.
 	 */
 	if (vmx->pt_desc.host.ctl)
-		wrmsrq(MSR_IA32_RTIT_CTL, vmx->pt_desc.host.ctl);
+		native_wrmsrq(MSR_IA32_RTIT_CTL, vmx->pt_desc.host.ctl);
 }
 
 void vmx_set_host_fs_gs(struct vmcs_host_state *host, u16 fs_sel, u16 gs_sel,
@@ -1347,7 +1347,7 @@ void vmx_prepare_switch_to_guest(struct kvm_vcpu *vcpu)
 		vt->msr_host_kernel_gs_base = native_rdmsrq(MSR_KERNEL_GS_BASE);
 	}
 
-	wrmsrq(MSR_KERNEL_GS_BASE, vmx->msr_guest_kernel_gs_base);
+	native_wrmsrq(MSR_KERNEL_GS_BASE, vmx->msr_guest_kernel_gs_base);
 #else
 	savesegment(fs, fs_sel);
 	savesegment(gs, gs_sel);
@@ -1371,7 +1371,7 @@ static void vmx_prepare_switch_to_host(struct vcpu_vmx *vmx)
 	++vmx->vcpu.stat.host_state_reload;
 
 #ifdef CONFIG_X86_64
-	rdmsrq(MSR_KERNEL_GS_BASE, vmx->msr_guest_kernel_gs_base);
+	vmx->msr_guest_kernel_gs_base = native_rdmsrq(MSR_KERNEL_GS_BASE);
 #endif
 	if (host_state->ldt_sel || (host_state->gs_sel & 7)) {
 		kvm_load_ldt(host_state->ldt_sel);
@@ -1391,7 +1391,7 @@ static void vmx_prepare_switch_to_host(struct vcpu_vmx *vmx)
 #endif
 	invalidate_tss_limit();
 #ifdef CONFIG_X86_64
-	wrmsrq(MSR_KERNEL_GS_BASE, vmx->vt.msr_host_kernel_gs_base);
+	native_wrmsrq(MSR_KERNEL_GS_BASE, vmx->vt.msr_host_kernel_gs_base);
 #endif
 	load_fixmap_gdt(raw_smp_processor_id());
 	vmx->vt.guest_state_loaded = false;
@@ -1403,7 +1403,7 @@ static u64 vmx_read_guest_kernel_gs_base(struct vcpu_vmx *vmx)
 {
 	preempt_disable();
 	if (vmx->vt.guest_state_loaded)
-		rdmsrq(MSR_KERNEL_GS_BASE, vmx->msr_guest_kernel_gs_base);
+		vmx->msr_guest_kernel_gs_base = native_rdmsrq(MSR_KERNEL_GS_BASE);
 	preempt_enable();
 	return vmx->msr_guest_kernel_gs_base;
 }
@@ -1412,7 +1412,7 @@ static void vmx_write_guest_kernel_gs_base(struct vcpu_vmx *vmx, u64 data)
 {
 	preempt_disable();
 	if (vmx->vt.guest_state_loaded)
-		wrmsrq(MSR_KERNEL_GS_BASE, data);
+		native_wrmsrq(MSR_KERNEL_GS_BASE, data);
 	preempt_enable();
 	vmx->msr_guest_kernel_gs_base = data;
 }
@@ -2551,13 +2551,13 @@ static bool cpu_has_sgx(void)
 
 static int adjust_vmx_controls(u32 ctl_min, u32 ctl_opt, u32 msr, u32 *result)
 {
-	u32 vmx_msr_low, vmx_msr_high;
+	struct msr vmx_msr;
 	u32 ctl = ctl_min | ctl_opt;
 
-	rdmsr(msr, vmx_msr_low, vmx_msr_high);
+	vmx_msr.q = native_rdmsrq(msr);
 
-	ctl &= vmx_msr_high; /* bit == 0 in high word ==> must be zero */
-	ctl |= vmx_msr_low;  /* bit == 1 in low word  ==> must be one  */
+	ctl &= vmx_msr.h;	/* bit == 0 in high word ==> must be zero */
+	ctl |= vmx_msr.l;	/* bit == 1 in low word  ==> must be one  */
 
 	/* Ensure minimum (required) set of control bits are supported. */
 	if (ctl_min & ~ctl)
@@ -2571,7 +2571,7 @@ static u64 adjust_vmx_controls64(u64 ctl_opt, u32 msr)
 {
 	u64 allowed;
 
-	rdmsrq(msr, allowed);
+	allowed = native_rdmsrq(msr);
 
 	return  ctl_opt & allowed;
 }
@@ -2613,6 +2613,7 @@ static int setup_vmcs_config(struct vmcs_config *vmcs_conf,
 	u64 _cpu_based_3rd_exec_control = 0;
 	u32 _vmexit_control = 0;
 	u32 _vmentry_control = 0;
+	u64 ept_vpid;
 	u64 basic_msr;
 	u64 misc_msr;
 
@@ -2661,8 +2662,9 @@ static int setup_vmcs_config(struct vmcs_config *vmcs_conf,
 				SECONDARY_EXEC_VIRTUALIZE_X2APIC_MODE |
 				SECONDARY_EXEC_VIRTUAL_INTR_DELIVERY);
 
-	rdmsr_safe(MSR_IA32_VMX_EPT_VPID_CAP,
-		&vmx_cap->ept, &vmx_cap->vpid);
+	native_rdmsrq_safe(MSR_IA32_VMX_EPT_VPID_CAP, &ept_vpid);
+	vmx_cap->ept = ept_vpid;
+	vmx_cap->vpid = ept_vpid >> 32;
 
 	if (!(_cpu_based_2nd_exec_control & SECONDARY_EXEC_ENABLE_EPT) &&
 	    vmx_cap->ept) {
@@ -2743,7 +2745,7 @@ static int setup_vmcs_config(struct vmcs_config *vmcs_conf,
 		break;
 	}
 
-	rdmsrq(MSR_IA32_VMX_BASIC, basic_msr);
+	basic_msr = native_rdmsrq(MSR_IA32_VMX_BASIC);
 
 	/* IA-32 SDM Vol 3B: VMCS size is never greater than 4kB. */
 	if (vmx_basic_vmcs_size(basic_msr) > PAGE_SIZE)
@@ -2763,7 +2765,7 @@ static int setup_vmcs_config(struct vmcs_config *vmcs_conf,
 	if (vmx_basic_vmcs_mem_type(basic_msr) != X86_MEMTYPE_WB)
 		return -EIO;
 
-	rdmsrq(MSR_IA32_VMX_MISC, misc_msr);
+	misc_msr = native_rdmsrq(MSR_IA32_VMX_MISC);
 
 	vmcs_conf->basic = basic_msr;
 	vmcs_conf->pin_based_exec_ctrl = _pin_based_exec_control;
@@ -2847,7 +2849,7 @@ static int kvm_cpu_vmxon(u64 vmxon_pointer)
 
 fault:
 	WARN_ONCE(1, "VMXON faulted, MSR_IA32_FEAT_CTL (0x3a) = 0x%llx\n",
-		  rdmsrq_safe(MSR_IA32_FEAT_CTL, &msr) ? 0xdeadbeef : msr);
+		  native_rdmsrq_safe(MSR_IA32_FEAT_CTL, &msr) ? 0xdeadbeef : msr);
 	cr4_clear_bits(X86_CR4_VMXE);
 
 	return -EFAULT;
@@ -4278,7 +4280,7 @@ void vmx_deliver_interrupt(struct kvm_lapic *apic, int delivery_mode,
  */
 void vmx_set_constant_host_state(struct vcpu_vmx *vmx)
 {
-	u32 low32, high32;
+	struct msr msr_val;
 	unsigned long tmpl;
 	unsigned long cr0, cr3, cr4;
 
@@ -4319,8 +4321,8 @@ void vmx_set_constant_host_state(struct vcpu_vmx *vmx)
 
 	vmcs_writel(HOST_RIP, (unsigned long)vmx_vmexit); /* 22.2.5 */
 
-	rdmsr(MSR_IA32_SYSENTER_CS, low32, high32);
-	vmcs_write32(HOST_IA32_SYSENTER_CS, low32);
+	msr_val.q = native_rdmsrq(MSR_IA32_SYSENTER_CS);
+	vmcs_write32(HOST_IA32_SYSENTER_CS, msr_val.l);
 
 	/*
 	 * SYSENTER is used for 32-bit system calls on either 32-bit or
@@ -4331,13 +4333,11 @@ void vmx_set_constant_host_state(struct vcpu_vmx *vmx)
 	if (!IS_ENABLED(CONFIG_IA32_EMULATION) && !IS_ENABLED(CONFIG_X86_32))
 		vmcs_writel(HOST_IA32_SYSENTER_ESP, 0);
 
-	rdmsrq(MSR_IA32_SYSENTER_EIP, tmpl);
+	tmpl = native_rdmsrq(MSR_IA32_SYSENTER_EIP);
 	vmcs_writel(HOST_IA32_SYSENTER_EIP, tmpl);   /* 22.2.3 */
 
-	if (vmcs_config.vmexit_ctrl & VM_EXIT_LOAD_IA32_PAT) {
-		rdmsr(MSR_IA32_CR_PAT, low32, high32);
-		vmcs_write64(HOST_IA32_PAT, low32 | ((u64) high32 << 32));
-	}
+	if (vmcs_config.vmexit_ctrl & VM_EXIT_LOAD_IA32_PAT)
+		vmcs_write64(HOST_IA32_PAT, native_rdmsrq(MSR_IA32_CR_PAT));
 
 	if (cpu_has_load_ia32_efer())
 		vmcs_write64(HOST_IA32_EFER, kvm_host.efer);
@@ -6964,7 +6964,7 @@ static void handle_nm_fault_irqoff(struct kvm_vcpu *vcpu)
 	 * the #NM exception.
 	 */
 	if (is_xfd_nm_fault(vcpu))
-		rdmsrq(MSR_IA32_XFD_ERR, vcpu->arch.guest_fpu.xfd_err);
+		vcpu->arch.guest_fpu.xfd_err = native_rdmsrq(MSR_IA32_XFD_ERR);
 }
 
 static void handle_exception_irqoff(struct kvm_vcpu *vcpu, u32 intr_info)
@@ -7889,7 +7889,7 @@ static __init u64 vmx_get_perf_capabilities(void)
 		return 0;
 
 	if (boot_cpu_has(X86_FEATURE_PDCM))
-		rdmsrq(MSR_IA32_PERF_CAPABILITIES, host_perf_cap);
+		host_perf_cap = native_rdmsrq(MSR_IA32_PERF_CAPABILITIES);
 
 	if (!cpu_feature_enabled(X86_FEATURE_ARCH_LBR)) {
 		x86_perf_get_lbr(&vmx_lbr_caps);
@@ -8438,7 +8438,7 @@ __init int vmx_hardware_setup(void)
 		kvm_enable_efer_bits(EFER_NX);
 
 	if (boot_cpu_has(X86_FEATURE_MPX)) {
-		rdmsrq(MSR_IA32_BNDCFGS, host_bndcfgs);
+		host_bndcfgs = native_rdmsrq(MSR_IA32_BNDCFGS);
 		WARN_ONCE(host_bndcfgs, "BNDCFGS in host will be lost");
 	}
 

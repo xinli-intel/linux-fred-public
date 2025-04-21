@@ -321,9 +321,9 @@ static bool intel_pmu_handle_lbr_msrs_access(struct kvm_vcpu *vcpu,
 	local_irq_disable();
 	if (lbr_desc->event->state == PERF_EVENT_STATE_ACTIVE) {
 		if (read)
-			rdmsrq(index, msr_info->data);
+			msr_info->data = native_rdmsrq(index);
 		else
-			wrmsrq(index, msr_info->data);
+			native_wrmsrq(index, msr_info->data);
 		__set_bit(INTEL_PMC_IDX_FIXED_VLBR, vcpu_to_pmu(vcpu)->pmc_in_use);
 		local_irq_enable();
 		return true;
