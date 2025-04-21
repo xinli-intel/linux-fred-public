@@ -251,11 +251,7 @@ static bool verify_sha256_digest(u32 patch_id, u32 cur_rev, const u8 *data, unsi
 
 static u32 get_patch_level(void)
 {
-	u32 rev, dummy __always_unused;
-
-	native_rdmsr_no_trace(MSR_AMD64_PATCH_LEVEL, rev, dummy);
-
-	return rev;
+	return native_rdmsrq_no_trace(MSR_AMD64_PATCH_LEVEL);
 }
 
 static union cpuid_1_eax ucode_rev_to_cpuid(unsigned int val)
@@ -832,7 +828,7 @@ static struct ucode_patch *find_patch(unsigned int cpu)
 
 void reload_ucode_amd(unsigned int cpu)
 {
-	u32 rev, dummy __always_unused;
+	u32 rev;
 	struct microcode_amd *mc;
 	struct ucode_patch *p;
 
