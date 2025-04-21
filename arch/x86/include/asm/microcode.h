@@ -63,7 +63,7 @@ static inline int intel_microcode_get_datasize(struct microcode_header_intel *hd
 
 static inline u32 intel_get_microcode_revision(void)
 {
-	u32 rev, dummy;
+	struct msr val;
 
 	native_wrmsrq_no_trace(MSR_IA32_UCODE_REV, 0);
 
@@ -71,9 +71,9 @@ static inline u32 intel_get_microcode_revision(void)
 	native_cpuid_eax(1);
 
 	/* get the current revision from MSR 0x8B */
-	native_rdmsr_no_trace(MSR_IA32_UCODE_REV, dummy, rev);
+	val.q = native_rdmsrq_no_trace(MSR_IA32_UCODE_REV);
 
-	return rev;
+	return val.h;
 }
 #endif /* !CONFIG_CPU_SUP_INTEL */
 
