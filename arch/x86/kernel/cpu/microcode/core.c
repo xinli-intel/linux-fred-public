@@ -82,10 +82,10 @@ struct early_load_data early_data;
  */
 static bool amd_check_current_patch_level(void)
 {
-	u32 lvl, dummy, i;
+	u32 lvl, i;
 	u32 *levels;
 
-	native_rdmsr_no_trace(MSR_AMD64_PATCH_LEVEL, lvl, dummy);
+	lvl = native_rdmsrq_no_trace(MSR_AMD64_PATCH_LEVEL);
 
 	levels = final_levels;
 
