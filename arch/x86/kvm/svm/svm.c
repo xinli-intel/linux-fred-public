@@ -566,7 +566,7 @@ static void __svm_write_tsc_multiplier(u64 multiplier)
 	if (multiplier == __this_cpu_read(current_tsc_ratio))
 		return;
 
-	wrmsrq(MSR_AMD64_TSC_RATIO, multiplier);
+	native_wrmsrq(MSR_AMD64_TSC_RATIO, multiplier);
 	__this_cpu_write(current_tsc_ratio, multiplier);
 }
 
@@ -579,15 +579,15 @@ static inline void kvm_cpu_svm_disable(void)
 {
 	uint64_t efer;
 
-	wrmsrq(MSR_VM_HSAVE_PA, 0);
-	rdmsrq(MSR_EFER, efer);
+	native_wrmsrq(MSR_VM_HSAVE_PA, 0);
+	efer = native_rdmsrq(MSR_EFER);
 	if (efer & EFER_SVME) {
 		/*
 		 * Force GIF=1 prior to disabling SVM, e.g. to ensure INIT and
 		 * NMI aren't blocked.
 		 */
 		stgi();
-		wrmsrq(MSR_EFER, efer & ~EFER_SVME);
+		native_wrmsrq(MSR_EFER, efer & ~EFER_SVME);
 	}
 }
 
@@ -616,7 +616,7 @@ static int svm_enable_virtualization_cpu(void)
 	uint64_t efer;
 	int me = raw_smp_processor_id();
 
-	rdmsrq(MSR_EFER, efer);
+	efer = native_rdmsrq(MSR_EFER);
 	if (efer & EFER_SVME)
 		return -EBUSY;
 
@@ -626,9 +626,9 @@ static int svm_enable_virtualization_cpu(void)
 	sd->next_asid = sd->max_asid + 1;
 	sd->min_asid = max_sev_asid + 1;
 
-	wrmsrq(MSR_EFER, efer | EFER_SVME);
+	native_wrmsrq(MSR_EFER, efer | EFER_SVME);
 
-	wrmsrq(MSR_VM_HSAVE_PA, sd->save_area_pa);
+	native_wrmsrq(MSR_VM_HSAVE_PA, sd->save_area_pa);
 
 	if (static_cpu_has(X86_FEATURE_TSCRATEMSR)) {
 		/*
@@ -677,11 +677,8 @@ static int svm_enable_virtualization_cpu(void)
 	 * Since Linux does not change the value of TSC_AUX once set, prime the
 	 * TSC_AUX field now to avoid a RDMSR on every vCPU run.
 	 */
-	if (boot_cpu_has(X86_FEATURE_V_TSC_AUX)) {
-		u32 __maybe_unused msr_hi;
-
-		rdmsr(MSR_TSC_AUX, sev_es_host_save_area(sd)->tsc_aux, msr_hi);
-	}
+	if (boot_cpu_has(X86_FEATURE_V_TSC_AUX))
+		sev_es_host_save_area(sd)->tsc_aux = native_rdmsrq(MSR_TSC_AUX);
 
 	return 0;
 }
@@ -5365,7 +5362,7 @@ static __init void svm_adjust_mmio_mask(void)
 		return;
 
 	/* If memory encryption is not enabled, use existing mask */
-	rdmsrq(MSR_AMD64_SYSCFG, msr);
+	msr = native_rdmsrq(MSR_AMD64_SYSCFG);
 	if (!(msr & MSR_AMD64_SYSCFG_MEM_ENCRYPT))
 		return;
 
