@@ -29,7 +29,6 @@
 #include <asm/apic.h>
 #include <asm/cpu_device_id.h>
 #include <asm/i8259.h>
-#include <asm/msr.h>
 #include <asm/topology.h>
 #include <asm/uv/uv.h>
 #include <asm/sev.h>

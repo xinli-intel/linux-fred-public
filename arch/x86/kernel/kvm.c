@@ -40,7 +40,6 @@
 #include <asm/mtrr.h>
 #include <asm/tlb.h>
 #include <asm/cpuidle_haltpoll.h>
-#include <asm/msr.h>
 #include <asm/ptrace.h>
 #include <asm/reboot.h>
 #include <asm/svm.h>

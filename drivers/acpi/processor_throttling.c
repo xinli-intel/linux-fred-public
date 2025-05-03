@@ -18,13 +18,9 @@
 #include <linux/sched.h>
 #include <linux/cpufreq.h>
 #include <linux/acpi.h>
-#include <linux/uaccess.h>
 #include <acpi/processor.h>
 #include <asm/io.h>
-#include <asm/asm.h>
-#ifdef CONFIG_X86
-#include <asm/msr.h>
-#endif
+#include <linux/uaccess.h>
 
 /* ignore_tpc:
  *  0 -> acpi processor driver doesn't ignore _TPC values

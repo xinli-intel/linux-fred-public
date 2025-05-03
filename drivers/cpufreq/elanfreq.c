@@ -21,6 +21,7 @@
 #include <linux/cpufreq.h>
 
 #include <asm/cpu_device_id.h>
+#include <asm/msr.h>
 #include <linux/timex.h>
 #include <linux/io.h>
 

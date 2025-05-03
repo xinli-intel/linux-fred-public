@@ -20,7 +20,6 @@
 #include <linux/debugfs.h>
 
 #include <asm/cpu_device_id.h>
-#include <asm/msr.h>
 
 #include "thermal_interrupt.h"
 

@@ -21,7 +21,6 @@
 #include <linux/kernel.h>
 #include <linux/smp.h>
 #include <linux/nmi.h>
-#include <asm/msr.h>
 #include <asm/tsc.h>
 
 struct tsc_adjust {

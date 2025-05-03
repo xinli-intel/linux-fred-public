@@ -21,7 +21,6 @@
 #include <asm/delay.h>
 #include <asm/debugreg.h>
 #include <asm/resctrl.h>
-#include <asm/msr.h>
 #include <asm/sev.h>
 
 #ifdef CONFIG_X86_64

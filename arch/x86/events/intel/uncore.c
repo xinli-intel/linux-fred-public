@@ -3,7 +3,6 @@
 
 #include <asm/cpu_device_id.h>
 #include <asm/intel-family.h>
-#include <asm/msr.h>
 #include "uncore.h"
 #include "uncore_discovery.h"
 

@@ -17,7 +17,6 @@
 
 #include <linux/sizes.h>
 #include <asm/perf_event.h>
-#include <asm/msr.h>
 
 #include "../perf_event.h"
 

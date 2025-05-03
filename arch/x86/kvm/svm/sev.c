@@ -26,7 +26,6 @@
 #include <asm/fpu/xcr.h>
 #include <asm/fpu/xstate.h>
 #include <asm/debugreg.h>
-#include <asm/msr.h>
 #include <asm/sev.h>
 
 #include "mmu.h"

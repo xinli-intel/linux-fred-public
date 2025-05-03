@@ -15,7 +15,6 @@
 #include <asm/mshyperv.h>
 #include <asm/paravirt.h>
 #include <asm/apic.h>
-#include <asm/msr.h>
 
 static bool hv_pvspin __initdata = true;
 

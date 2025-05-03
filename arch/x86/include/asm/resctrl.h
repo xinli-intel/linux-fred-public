@@ -9,8 +9,6 @@
 #include <linux/resctrl_types.h>
 #include <linux/sched.h>
 
-#include <asm/msr.h>
-
 /*
  * This value can never be a valid CLOSID, and is used when mapping a
  * (closid, rmid) pair to an index and back. On x86 only the RMID is

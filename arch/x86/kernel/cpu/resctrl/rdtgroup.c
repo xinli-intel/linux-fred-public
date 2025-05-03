@@ -28,7 +28,6 @@
 
 #include <uapi/linux/magic.h>
 
-#include <asm/msr.h>
 #include <asm/resctrl.h>
 #include "internal.h"
 

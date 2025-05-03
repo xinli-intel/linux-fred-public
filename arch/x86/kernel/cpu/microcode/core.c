@@ -37,7 +37,6 @@
 #include <asm/perf_event.h>
 #include <asm/processor.h>
 #include <asm/cmdline.h>
-#include <asm/msr.h>
 #include <asm/setup.h>
 
 #include "internal.h"

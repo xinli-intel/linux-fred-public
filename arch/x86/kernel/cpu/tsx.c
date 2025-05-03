@@ -12,7 +12,6 @@
 
 #include <asm/cmdline.h>
 #include <asm/cpu.h>
-#include <asm/msr.h>
 
 #include "cpu.h"
 

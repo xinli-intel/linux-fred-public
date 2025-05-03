@@ -52,7 +52,6 @@
 
 #include <linux/io-64-nonatomic-lo-hi.h>
 #include <asm/mce.h>
-#include <asm/msr.h>
 #include "edac_module.h"
 
 #define EDAC_MOD_STR "ie31200_edac"

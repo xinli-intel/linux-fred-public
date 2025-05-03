@@ -15,7 +15,6 @@
 #include <asm/cacheinfo.h>
 #include <asm/spec-ctrl.h>
 #include <asm/delay.h>
-#include <asm/msr.h>
 
 #include "cpu.h"
 

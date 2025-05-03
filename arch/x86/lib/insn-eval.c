@@ -13,7 +13,6 @@
 #include <asm/insn.h>
 #include <asm/insn-eval.h>
 #include <asm/ldt.h>
-#include <asm/msr.h>
 #include <asm/vm86.h>
 
 #undef pr_fmt

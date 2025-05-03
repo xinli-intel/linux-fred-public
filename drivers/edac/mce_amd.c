@@ -3,7 +3,6 @@
 #include <linux/slab.h>
 
 #include <asm/cpu.h>
-#include <asm/msr.h>
 
 #include "mce_amd.h"
 

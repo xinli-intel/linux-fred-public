@@ -15,7 +15,6 @@
 #include <linux/sched/clock.h>
 
 #include <asm/apic.h>
-#include <asm/msr.h>
 
 #include "../perf_event.h"
 

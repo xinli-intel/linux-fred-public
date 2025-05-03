@@ -12,7 +12,6 @@
 #include <asm/hpet.h>
 #include <asm/time.h>
 #include <asm/mwait.h>
-#include <asm/msr.h>
 
 #undef  pr_fmt
 #define pr_fmt(fmt) "hpet: " fmt

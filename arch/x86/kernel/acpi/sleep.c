@@ -16,7 +16,6 @@
 #include <asm/cacheflush.h>
 #include <asm/realmode.h>
 #include <asm/hypervisor.h>
-#include <asm/msr.h>
 #include <asm/smp.h>
 
 #include <linux/ftrace.h>

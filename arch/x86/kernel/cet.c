@@ -2,7 +2,6 @@
 
 #include <linux/ptrace.h>
 #include <asm/bugs.h>
-#include <asm/msr.h>
 #include <asm/traps.h>
 
 enum cp_error_code {

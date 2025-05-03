@@ -10,7 +10,6 @@
 
 #include <linux/smp.h>
 #include <linux/suspend.h>
-#include <asm/msr.h>
 #include "core.h"
 
 /* Cannon Lake: PGD PFET Enable Ack Status Register(s) bitmap */

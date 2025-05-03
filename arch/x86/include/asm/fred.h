@@ -9,7 +9,6 @@
 #include <linux/const.h>
 
 #include <asm/asm.h>
-#include <asm/msr.h>
 #include <asm/trapnr.h>
 
 /*

@@ -14,7 +14,6 @@
 #include <linux/init.h>
 #include <linux/pgtable.h>
 
-#include <asm/msr.h>
 #include <asm/numachip/numachip.h>
 #include <asm/numachip/numachip_csr.h>
 
