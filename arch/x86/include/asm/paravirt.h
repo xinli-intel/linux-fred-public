@@ -180,6 +180,22 @@ static __always_inline u64 paravirt_read_msr(u32 msr)
 	u64 val;
 
 	PVOP_TEST_NULL(cpu.read_msr);
+
+#ifdef CONFIG_X86_64
+	if (__builtin_constant_p(msr))
+		asm volatile(ALTERNATIVE("mov %[msr], %%ecx", "", X86_FEATURE_MSR_IMM)
+			     "1: "ALTERNATIVE_3(PARAVIRT_CALL,
+						RDMSR_TO_RAX, ALT_NOT_XEN,
+						ASM_RDMSR_IMM, X86_FEATURE_MSR_IMM,
+						ALT_CALL_INSTR, ALT_XENPV_CALL)
+			     "2:\n"
+			     _ASM_EXTABLE_TYPE(1b, 2b, EX_TYPE_RDMSR)
+			     : [val] "=a" (val), ASM_CALL_CONSTRAINT
+			     : paravirt_ptr(cpu.read_msr), [msr] "i" (msr)
+			     : "ecx", "rdx");
+	else
+#endif
+
 	asm volatile("1: "ALTERNATIVE_2(PARAVIRT_CALL,
 					"rdmsr", ALT_NOT_XEN,
 					ALT_CALL_INSTR, ALT_XENPV_CALL)
@@ -196,6 +212,22 @@ static __always_inline u64 paravirt_read_msr(u32 msr)
 static __always_inline void paravirt_write_msr(u32 msr, u64 val)
 {
 	PVOP_TEST_NULL(cpu.write_msr);
+
+#ifdef CONFIG_X86_64
+	if (__builtin_constant_p(msr))
+		asm volatile(ALTERNATIVE(PREPARE_RCX_RDX_FOR_WRMSR, "", X86_FEATURE_MSR_IMM)
+			     "1: "ALTERNATIVE_3(PARAVIRT_CALL,
+						"wrmsr", ALT_NOT_XEN,
+						ASM_WRMSRNS_IMM, X86_FEATURE_MSR_IMM,
+						ALT_CALL_INSTR, ALT_XENPV_CALL)
+			     "2:\n"
+			     _ASM_EXTABLE_TYPE(1b, 2b, EX_TYPE_WRMSR)
+			     : ASM_CALL_CONSTRAINT
+			     : paravirt_ptr(cpu.write_msr), [msr] "i" (msr), [val] "a" (val)
+			     : "ecx", "rdx", "memory");
+	else
+#endif
+
 	asm volatile("1: "ALTERNATIVE_2(PARAVIRT_CALL,
 					"wrmsr", ALT_NOT_XEN,
 					ALT_CALL_INSTR, ALT_XENPV_CALL)
@@ -212,6 +244,22 @@ static __always_inline int paravirt_read_msr_safe(u32 msr, u64 *p)
 	int err;
 
 	PVOP_TEST_NULL(cpu.read_msr_safe);
+
+#ifdef CONFIG_X86_64
+	if (__builtin_constant_p(msr))
+		asm volatile(ALTERNATIVE("mov %[msr], %%ecx", "", X86_FEATURE_MSR_IMM)
+			     "1: "ALTERNATIVE_3(PARAVIRT_CALL,
+						RDMSR_TO_RAX "xor %[err],%[err]", ALT_NOT_XEN,
+						ASM_RDMSR_IMM "xor %[err],%[err]", X86_FEATURE_MSR_IMM,
+						ALT_CALL_INSTR, ALT_XENPV_CALL)
+			     "2:\n"
+			     _ASM_EXTABLE_TYPE_REG(1b, 2b, EX_TYPE_RDMSR_SAFE, %[err])
+			     : [val] "=a" (*p), [err] "=c" (err), ASM_CALL_CONSTRAINT
+			     : paravirt_ptr(cpu.read_msr_safe), [msr] "i" (msr)
+			     : "rdx");
+	else
+#endif
+
 	asm volatile("1: "ALTERNATIVE_2(PARAVIRT_CALL,
 					"rdmsr; xor %[err], %[err]", ALT_NOT_XEN,
 					ALT_CALL_INSTR, ALT_XENPV_CALL)
@@ -230,6 +278,23 @@ static __always_inline int paravirt_write_msr_safe(u32 msr, u64 val)
 	int err;
 
 	PVOP_TEST_NULL(cpu.write_msr_safe);
+
+#ifdef CONFIG_X86_64
+	if (__builtin_constant_p(msr))
+		asm volatile(ALTERNATIVE(PREPARE_RCX_RDX_FOR_WRMSR, "", X86_FEATURE_MSR_IMM)
+			     "1: "ALTERNATIVE_3(PARAVIRT_CALL,
+						"wrmsr; xor %[err],%[err]", ALT_NOT_XEN,
+						ASM_WRMSRNS_IMM "xor %[err],%[err]", X86_FEATURE_MSR_IMM,
+						ALT_CALL_INSTR, ALT_XENPV_CALL)
+			     "2:\n"
+			     _ASM_EXTABLE_TYPE_REG(1b, 2b, EX_TYPE_WRMSR_SAFE, %[err])
+			     : [err] "=a" (err), ASM_CALL_CONSTRAINT
+			     : paravirt_ptr(cpu.write_msr_safe), [msr] "i" (msr),
+			       [val] "a" (val)
+			     : "ecx", "rdx", "memory");
+	else
+#endif
+
 	asm volatile("1: "ALTERNATIVE_2(PARAVIRT_CALL,
 					"wrmsr; xor %[err], %[err]", ALT_NOT_XEN,
 					ALT_CALL_INSTR, ALT_XENPV_CALL)
