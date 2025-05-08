@@ -177,18 +177,20 @@ static inline void __write_cr4(unsigned long x)
 
 static __always_inline u64 paravirt_read_msr(u32 msr)
 {
-	EAX_EDX_DECLARE_ARGS(val, low, high);
+	u64 val;
 
 	PVOP_TEST_NULL(cpu.read_msr);
 	asm volatile("1: "ALTERNATIVE_2(PARAVIRT_CALL,
 					"rdmsr", ALT_NOT_XEN,
 					ALT_CALL_INSTR, ALT_XENPV_CALL)
+		     ALTERNATIVE("", "shl $0x20, %%rdx; or %%rdx, %%rax", ALT_NOT_XEN)
 		     "2:\n"
 		     _ASM_EXTABLE_TYPE(1b, 2b, EX_TYPE_RDMSR)
-		     : EAX_EDX_RET(val, low, high), ASM_CALL_CONSTRAINT
-		     : paravirt_ptr(cpu.read_msr), "c" (msr));
+		     : "=a" (val), ASM_CALL_CONSTRAINT
+		     : paravirt_ptr(cpu.read_msr), "c" (msr)
+		     : "rdx");
 
-	return EAX_EDX_VAL(val, low, high);
+	return val;
 }
 
 static __always_inline void paravirt_write_msr(u32 msr, u64 val)
@@ -201,26 +203,24 @@ static __always_inline void paravirt_write_msr(u32 msr, u64 val)
 		      _ASM_EXTABLE_TYPE(1b, 2b, EX_TYPE_WRMSR)
 		      : ASM_CALL_CONSTRAINT
 		      : paravirt_ptr(cpu.write_msr),
-			  "c" (msr), "a" ((u32)val), "d" ((u32)(val >> 32))
+		        "c" (msr), "a" ((u32)val), "d" ((u32)(val >> 32))
 		      : "memory");
 }
 
 static __always_inline int paravirt_read_msr_safe(u32 msr, u64 *p)
 {
 	int err;
-	EAX_EDX_DECLARE_ARGS(val, low, high);
 
 	PVOP_TEST_NULL(cpu.read_msr_safe);
 	asm volatile("1: "ALTERNATIVE_2(PARAVIRT_CALL,
-					"rdmsr; xor %[err],%[err]", ALT_NOT_XEN,
+					"rdmsr; xor %[err], %[err]", ALT_NOT_XEN,
 					ALT_CALL_INSTR, ALT_XENPV_CALL)
+		     ALTERNATIVE("", "shl $0x20, %%rdx; or %%rdx, %%rax", ALT_NOT_XEN)
 		     "2:\n"
 		     _ASM_EXTABLE_TYPE_REG(1b, 2b, EX_TYPE_RDMSR_SAFE, %[err])
-		     : [err] "=c" (err), EAX_EDX_RET(val, low, high),
-		       ASM_CALL_CONSTRAINT
-		     : paravirt_ptr(cpu.read_msr_safe), "0" (msr));
-
-	*p = EAX_EDX_VAL(val, low, high);
+		     : "=a" (*p), [err] "=c" (err), ASM_CALL_CONSTRAINT
+		     : paravirt_ptr(cpu.read_msr_safe), "1" (msr)
+		     : "rdx");
 
 	return err;
 }
@@ -231,7 +231,7 @@ static __always_inline int paravirt_write_msr_safe(u32 msr, u64 val)
 
 	PVOP_TEST_NULL(cpu.write_msr_safe);
 	asm volatile("1: "ALTERNATIVE_2(PARAVIRT_CALL,
-					"wrmsr; xor %[err],%[err]", ALT_NOT_XEN,
+					"wrmsr; xor %[err], %[err]", ALT_NOT_XEN,
 					ALT_CALL_INSTR, ALT_XENPV_CALL)
 		     "2:\n"
 		     _ASM_EXTABLE_TYPE_REG(1b, 2b, EX_TYPE_WRMSR_SAFE, %[err])

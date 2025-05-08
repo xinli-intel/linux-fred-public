@@ -1168,33 +1168,35 @@ struct xen_rdmsr_safe_ret {
 	u64 val;
 	int err;
 };
+
 struct xen_rdmsr_safe_ret xen_read_msr_safe(u32 msr);
-int xen_write_msr_safe(u32 msr, u32 low, u32 high);
+int xen_write_msr_safe(u32 msr, u64 val);
 u64 xen_read_msr(u32 msr);
-void xen_write_msr(u32 msr, u32 low, u32 high);
+void xen_write_msr(u32 msr, u64 val);
 
 __visible struct xen_rdmsr_safe_ret xen_read_msr_safe(u32 msr)
 {
-	struct xen_rdmsr_safe_ret ret;
+	struct xen_rdmsr_safe_ret ret = { 0, 0 };
 
 	ret.val = xen_do_read_msr(msr, &ret.err);
 	return ret;
 }
+
 #define PV_PROLOGUE_MSR_xen_read_msr_safe	"mov %ecx, %edi;"
-#define PV_EPILOGUE_MSR_xen_read_msr_safe	\
-	"mov %edx, %ecx; mov %rax, %rdx; mov %eax, %eax; shr $0x20, %rdx;"
+#define PV_EPILOGUE_MSR_xen_read_msr_safe	"mov %edx, %ecx;"
 PV_CALLEE_SAVE_REGS_MSR_THUNK(xen_read_msr_safe);
 
-__visible int xen_write_msr_safe(u32 msr, u32 low, u32 high)
+__visible int xen_write_msr_safe(u32 msr, u64 val)
 {
 	int err = 0;
 
-	xen_do_write_msr(msr, (u64)high << 32 | low, &err);
+	xen_do_write_msr(msr, val, &err);
 
 	return err;
 }
+
 #define PV_PROLOGUE_MSR_xen_write_msr_safe	\
-	"mov %ecx, %edi; mov %eax, %esi;"
+	"mov %ecx, %edi; mov %rax, %rsi;"
 #define PV_EPILOGUE_MSR_xen_write_msr_safe
 PV_CALLEE_SAVE_REGS_MSR_THUNK(xen_write_msr_safe);
 
@@ -1204,20 +1206,20 @@ __visible u64 xen_read_msr(u32 msr)
 
 	return xen_do_read_msr(msr, xen_msr_safe ? &err : NULL);
 }
+
 #define PV_PROLOGUE_MSR_xen_read_msr	"mov %ecx, %edi;"
-#define PV_EPILOGUE_MSR_xen_read_msr	\
-	"mov %rax, %rdx; mov %eax, %eax; shr $0x20, %rdx;"
+#define PV_EPILOGUE_MSR_xen_read_msr
 PV_CALLEE_SAVE_REGS_MSR_THUNK(xen_read_msr);
 
-__visible void xen_write_msr(u32 msr, u32 low, u32 high)
+__visible void xen_write_msr(u32 msr, u64 val)
 {
 	int err;
 
-	xen_do_write_msr(msr, (u64)high << 32 | low,
-			 xen_msr_safe ? &err : NULL);
+	xen_do_write_msr(msr, val, xen_msr_safe ? &err : NULL);
 }
+
 #define PV_PROLOGUE_MSR_xen_write_msr	\
-	"mov %ecx, %edi; mov %eax, %esi;"
+	"mov %ecx, %edi; mov %rax, %rsi;"
 #define PV_EPILOGUE_MSR_xen_write_msr
 PV_CALLEE_SAVE_REGS_MSR_THUNK(xen_write_msr);
 
