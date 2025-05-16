@@ -101,7 +101,7 @@ void noinstr __sev_es_nmi_complete(void)
 	ghcb_set_sw_exit_info_1(ghcb, 0);
 	ghcb_set_sw_exit_info_2(ghcb, 0);
 
-	sev_es_wr_ghcb_msr(__pa_nodebug(ghcb));
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, __pa_nodebug(ghcb));
 	VMGEXIT();
 
 	__sev_put_ghcb(&state);

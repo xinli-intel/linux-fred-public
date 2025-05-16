@@ -140,7 +140,7 @@ static u64 __init get_jump_table_addr(void)
 	ghcb_set_sw_exit_info_1(ghcb, SVM_VMGEXIT_GET_AP_JUMP_TABLE);
 	ghcb_set_sw_exit_info_2(ghcb, 0);
 
-	sev_es_wr_ghcb_msr(__pa(ghcb));
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, __pa(ghcb));
 	VMGEXIT();
 
 	if (ghcb_sw_exit_info_1_is_valid(ghcb) &&
@@ -898,7 +898,7 @@ static int wakeup_cpu_via_vmgexit(u32 apic_id, unsigned long start_ip)
 				SVM_VMGEXIT_AP_CREATE);
 	ghcb_set_sw_exit_info_2(ghcb, __pa(vmsa));
 
-	sev_es_wr_ghcb_msr(__pa(ghcb));
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, __pa(ghcb));
 	VMGEXIT();
 
 	if (!ghcb_sw_exit_info_1_is_valid(ghcb) ||
@@ -1072,7 +1072,7 @@ static void sev_es_ap_hlt_loop(void)
 		ghcb_set_sw_exit_info_1(ghcb, 0);
 		ghcb_set_sw_exit_info_2(ghcb, 0);
 
-		sev_es_wr_ghcb_msr(__pa(ghcb));
+		native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, __pa(ghcb));
 		VMGEXIT();
 
 		/* Wakeup signal? */

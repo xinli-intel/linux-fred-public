@@ -40,6 +40,7 @@
 #include <asm/apic.h>
 #include <asm/cpuid/api.h>
 #include <asm/cmdline.h>
+#include <asm/msr.h>
 
 /* For early boot hypervisor communication in SEV-ES enabled guests */
 struct ghcb boot_ghcb_page __bss_decrypted __aligned(PAGE_SIZE);
@@ -193,7 +194,7 @@ early_set_pages_state(unsigned long vaddr, unsigned long paddr,
 		 * Use the MSR protocol because this function can be called before
 		 * the GHCB is established.
 		 */
-		sev_es_wr_ghcb_msr(GHCB_MSR_PSC_REQ_GFN(paddr >> PAGE_SHIFT, op));
+		native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_MSR_PSC_REQ_GFN(paddr >> PAGE_SHIFT, op));
 		VMGEXIT();
 
 		val = sev_es_rd_ghcb_msr();

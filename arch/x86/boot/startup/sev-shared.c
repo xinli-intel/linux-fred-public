@@ -10,6 +10,7 @@
  */
 
 #include <asm/setup_data.h>
+#include <asm/msr.h>
 
 #ifndef __BOOT_COMPRESSED
 #define error(v)			pr_err(v)
@@ -73,7 +74,7 @@ sev_es_terminate(unsigned int set, unsigned int reason)
 	val |= GHCB_SEV_TERM_REASON(set, reason);
 
 	/* Request Guest Termination from Hypervisor */
-	sev_es_wr_ghcb_msr(val);
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, val);
 	VMGEXIT();
 
 	while (true)
@@ -90,7 +91,7 @@ u64 get_hv_features(void)
 	if (ghcb_version < 2)
 		return 0;
 
-	sev_es_wr_ghcb_msr(GHCB_MSR_HV_FT_REQ);
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_MSR_HV_FT_REQ);
 	VMGEXIT();
 
 	val = sev_es_rd_ghcb_msr();
@@ -105,7 +106,7 @@ void snp_register_ghcb_early(unsigned long paddr)
 	unsigned long pfn = paddr >> PAGE_SHIFT;
 	u64 val;
 
-	sev_es_wr_ghcb_msr(GHCB_MSR_REG_GPA_REQ_VAL(pfn));
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_MSR_REG_GPA_REQ_VAL(pfn));
 	VMGEXIT();
 
 	val = sev_es_rd_ghcb_msr();
@@ -121,7 +122,7 @@ bool sev_es_negotiate_protocol(void)
 	u64 val;
 
 	/* Do the GHCB protocol version negotiation */
-	sev_es_wr_ghcb_msr(GHCB_MSR_SEV_INFO_REQ);
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_MSR_SEV_INFO_REQ);
 	VMGEXIT();
 	val = sev_es_rd_ghcb_msr();
 
@@ -227,13 +228,13 @@ static int svsm_perform_msr_protocol(struct svsm_call *call)
 	 */
 	val = sev_es_rd_ghcb_msr();
 
-	sev_es_wr_ghcb_msr(GHCB_MSR_VMPL_REQ_LEVEL(0));
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_MSR_VMPL_REQ_LEVEL(0));
 
 	svsm_issue_call(call, &pending);
 
 	resp = sev_es_rd_ghcb_msr();
 
-	sev_es_wr_ghcb_msr(val);
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, val);
 
 	if (pending)
 		return -EINVAL;
@@ -265,7 +266,7 @@ static int svsm_perform_ghcb_protocol(struct ghcb *ghcb, struct svsm_call *call)
 	ghcb_set_sw_exit_info_1(ghcb, 0);
 	ghcb_set_sw_exit_info_2(ghcb, 0);
 
-	sev_es_wr_ghcb_msr(__pa(ghcb));
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, __pa(ghcb));
 
 	svsm_issue_call(call, &pending);
 
@@ -298,7 +299,7 @@ enum es_result sev_es_ghcb_hv_call(struct ghcb *ghcb,
 	ghcb_set_sw_exit_info_1(ghcb, exit_info_1);
 	ghcb_set_sw_exit_info_2(ghcb, exit_info_2);
 
-	sev_es_wr_ghcb_msr(__pa(ghcb));
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, __pa(ghcb));
 	VMGEXIT();
 
 	return verify_exception_info(ghcb, ctxt);
@@ -308,7 +309,7 @@ static int __sev_cpuid_hv(u32 fn, int reg_idx, u32 *reg)
 {
 	u64 val;
 
-	sev_es_wr_ghcb_msr(GHCB_CPUID_REQ(fn, reg_idx));
+	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_CPUID_REQ(fn, reg_idx));
 	VMGEXIT();
 	val = sev_es_rd_ghcb_msr();
 	if (GHCB_RESP_CODE(val) != GHCB_MSR_CPUID_RESP)
