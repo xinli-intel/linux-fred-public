@@ -94,7 +94,7 @@ u64 get_hv_features(void)
 	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_MSR_HV_FT_REQ);
 	VMGEXIT();
 
-	val = sev_es_rd_ghcb_msr();
+	val = native_rdmsrq(MSR_AMD64_SEV_ES_GHCB);
 	if (GHCB_RESP_CODE(val) != GHCB_MSR_HV_FT_RESP)
 		return 0;
 
@@ -109,7 +109,7 @@ void snp_register_ghcb_early(unsigned long paddr)
 	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_MSR_REG_GPA_REQ_VAL(pfn));
 	VMGEXIT();
 
-	val = sev_es_rd_ghcb_msr();
+	val = native_rdmsrq(MSR_AMD64_SEV_ES_GHCB);
 
 	/* If the response GPA is not ours then abort the guest */
 	if ((GHCB_RESP_CODE(val) != GHCB_MSR_REG_GPA_RESP) ||
@@ -124,7 +124,7 @@ bool sev_es_negotiate_protocol(void)
 	/* Do the GHCB protocol version negotiation */
 	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_MSR_SEV_INFO_REQ);
 	VMGEXIT();
-	val = sev_es_rd_ghcb_msr();
+	val = native_rdmsrq(MSR_AMD64_SEV_ES_GHCB);
 
 	if (GHCB_MSR_INFO(val) != GHCB_MSR_SEV_INFO_RESP)
 		return false;
@@ -226,13 +226,13 @@ static int svsm_perform_msr_protocol(struct svsm_call *call)
 	 * When using the MSR protocol, be sure to save and restore
 	 * the current MSR value.
 	 */
-	val = sev_es_rd_ghcb_msr();
+	val = native_rdmsrq(MSR_AMD64_SEV_ES_GHCB);
 
 	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_MSR_VMPL_REQ_LEVEL(0));
 
 	svsm_issue_call(call, &pending);
 
-	resp = sev_es_rd_ghcb_msr();
+	resp = native_rdmsrq(MSR_AMD64_SEV_ES_GHCB);
 
 	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, val);
 
@@ -311,7 +311,7 @@ static int __sev_cpuid_hv(u32 fn, int reg_idx, u32 *reg)
 
 	native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_CPUID_REQ(fn, reg_idx));
 	VMGEXIT();
-	val = sev_es_rd_ghcb_msr();
+	val = native_rdmsrq(MSR_AMD64_SEV_ES_GHCB);
 	if (GHCB_RESP_CODE(val) != GHCB_MSR_CPUID_RESP)
 		return -EIO;
 

@@ -197,7 +197,7 @@ early_set_pages_state(unsigned long vaddr, unsigned long paddr,
 		native_wrmsrq(MSR_AMD64_SEV_ES_GHCB, GHCB_MSR_PSC_REQ_GFN(paddr >> PAGE_SHIFT, op));
 		VMGEXIT();
 
-		val = sev_es_rd_ghcb_msr();
+		val = native_rdmsrq(MSR_AMD64_SEV_ES_GHCB);
 
 		if (GHCB_RESP_CODE(val) != GHCB_MSR_PSC_RESP)
 			goto e_term;

@@ -82,11 +82,6 @@ static __always_inline u64 svsm_get_caa_pa(void)
 
 int svsm_perform_call_protocol(struct svsm_call *call);
 
-static inline u64 sev_es_rd_ghcb_msr(void)
-{
-	return native_rdmsrq(MSR_AMD64_SEV_ES_GHCB);
-}
-
 void snp_register_ghcb_early(unsigned long paddr);
 bool sev_es_negotiate_protocol(void);
 bool sev_es_check_cpu_features(void);
