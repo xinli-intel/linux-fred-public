@@ -202,7 +202,7 @@ static void kgdb_correct_hw_break(void)
 			early_dr7 |= encode_dr7(breakno,
 						breakinfo[breakno].len,
 						breakinfo[breakno].type);
-			set_debugreg(early_dr7, 7);
+			set_debugreg(early_dr7, DR_CONTROL);
 			continue;
 		}
 		bp = *per_cpu_ptr(breakinfo[breakno].pev, cpu);
@@ -385,7 +385,7 @@ static void kgdb_disable_hw_debug(struct pt_regs *regs)
 	struct perf_event *bp;
 
 	/* Disable hardware debugging while we are in kgdb: */
-	set_debugreg(0UL, 7);
+	set_debugreg(DR7_RESET_VALUE, DR_CONTROL);
 	for (i = 0; i < HBP_NUM; i++) {
 		if (!breakinfo[i].enabled)
 			continue;

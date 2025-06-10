@@ -100,8 +100,8 @@ static __always_inline void native_set_debugreg(int regno, unsigned long value)
 
 static inline void hw_breakpoint_disable(void)
 {
-	/* Zero the control register for HW Breakpoint */
-	set_debugreg(0UL, 7);
+	/* Reset the control register for HW Breakpoint */
+	set_debugreg(DR7_RESET_VALUE, DR_CONTROL);
 
 	/* Zero-out the individual HW breakpoint address registers */
 	set_debugreg(0UL, 0);
@@ -124,10 +124,10 @@ static __always_inline unsigned long local_db_save(void)
 	if (static_cpu_has(X86_FEATURE_HYPERVISOR) && !hw_breakpoint_active())
 		return 0;
 
-	get_debugreg(dr7, 7);
-	dr7 &= ~0x400; /* architecturally set bit */
+	get_debugreg(dr7, DR_CONTROL);
+	dr7 &= ~DR7_RESET_VALUE; /* architecturally set bit */
 	if (dr7)
-		set_debugreg(0, 7);
+		set_debugreg(DR7_RESET_VALUE, DR_CONTROL);
 	/*
 	 * Ensure the compiler doesn't lower the above statements into
 	 * the critical section; disabling breakpoints late would not
@@ -147,7 +147,7 @@ static __always_inline void local_db_restore(unsigned long dr7)
 	 */
 	barrier();
 	if (dr7)
-		set_debugreg(dr7, 7);
+		set_debugreg(dr7, DR_CONTROL);
 }
 
 #ifdef CONFIG_CPU_SUP_AMD

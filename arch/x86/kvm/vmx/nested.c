@@ -3270,7 +3270,7 @@ static int nested_vmx_check_vmentry_hw(struct kvm_vcpu *vcpu)
 	 * VMExit clears RFLAGS.IF and DR7, even on a consistency check.
 	 */
 	if (hw_breakpoint_active())
-		set_debugreg(__this_cpu_read(cpu_dr7), 7);
+		set_debugreg(__this_cpu_read(cpu_dr7), DR_CONTROL);
 	local_irq_enable();
 	preempt_enable();
 

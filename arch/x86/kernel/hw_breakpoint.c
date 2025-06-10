@@ -125,7 +125,7 @@ int arch_install_hw_breakpoint(struct perf_event *bp)
 	 */
 	barrier();
 
-	set_debugreg(*dr7, 7);
+	set_debugreg(*dr7, DR_CONTROL);
 	if (info->mask)
 		amd_set_dr_addr_mask(info->mask, i);
 
@@ -164,7 +164,7 @@ void arch_uninstall_hw_breakpoint(struct perf_event *bp)
 	dr7 = this_cpu_read(cpu_dr7);
 	dr7 &= ~__encode_dr7(i, info->len, info->type);
 
-	set_debugreg(dr7, 7);
+	set_debugreg(dr7, DR_CONTROL);
 	if (info->mask)
 		amd_set_dr_addr_mask(0, i);
 
@@ -487,7 +487,7 @@ void hw_breakpoint_restore(void)
 	set_debugreg(__this_cpu_read(cpu_debugreg[2]), 2);
 	set_debugreg(__this_cpu_read(cpu_debugreg[3]), 3);
 	set_debugreg(DR6_RESERVED, 6);
-	set_debugreg(__this_cpu_read(cpu_dr7), 7);
+	set_debugreg(__this_cpu_read(cpu_dr7), DR_CONTROL);
 }
 EXPORT_SYMBOL_GPL(hw_breakpoint_restore);
 
