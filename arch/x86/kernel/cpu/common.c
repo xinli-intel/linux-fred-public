@@ -2249,7 +2249,7 @@ static void initialize_debug_regs(void)
 
 	/* Control register first */
 	set_debugreg(DR7_RESET_VALUE, DR_CONTROL);
-	set_debugreg(0, DR_STATUS);
+	set_debugreg(DR6_RESERVED, DR_STATUS);
 
 	/* Ignore db4, db5 */
 	for (i = DR_FIRSTADDR; i <= DR_LASTADDR; i++)

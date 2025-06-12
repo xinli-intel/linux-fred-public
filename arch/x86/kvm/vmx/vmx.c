@@ -5593,7 +5593,7 @@ void vmx_sync_dirty_debug_regs(struct kvm_vcpu *vcpu)
 	get_debugreg(vcpu->arch.db[1], 1);
 	get_debugreg(vcpu->arch.db[2], 2);
 	get_debugreg(vcpu->arch.db[3], 3);
-	get_debugreg(vcpu->arch.dr6, 6);
+	get_debugreg(vcpu->arch.dr6, DR_STATUS);
 	vcpu->arch.dr7 = vmcs_readl(GUEST_DR7);
 
 	vcpu->arch.switch_db_regs &= ~KVM_DEBUGREG_WONT_EXIT;
@@ -5603,13 +5603,13 @@ void vmx_sync_dirty_debug_regs(struct kvm_vcpu *vcpu)
 	 * exc_debug expects dr6 to be cleared after it runs, avoid that it sees
 	 * a stale dr6 from the guest.
 	 */
-	set_debugreg(DR6_RESERVED, 6);
+	set_debugreg(DR6_RESERVED, DR_STATUS);
 }
 
 void vmx_set_dr6(struct kvm_vcpu *vcpu, unsigned long val)
 {
 	lockdep_assert_irqs_disabled();
-	set_debugreg(vcpu->arch.dr6, 6);
+	set_debugreg(vcpu->arch.dr6, DR_STATUS);
 }
 
 void vmx_set_dr7(struct kvm_vcpu *vcpu, unsigned long val)

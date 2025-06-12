@@ -128,7 +128,7 @@ void __show_regs(struct pt_regs *regs, enum show_regs_mode mode,
 	get_debugreg(d1, 1);
 	get_debugreg(d2, 2);
 	get_debugreg(d3, 3);
-	get_debugreg(d6, 6);
+	get_debugreg(d6, DR_STATUS);
 	get_debugreg(d7, DR_CONTROL);
 
 	/* Only print out debug registers if they are in their non-default state. */
