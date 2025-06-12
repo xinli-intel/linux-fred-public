@@ -17,6 +17,7 @@
 #include <linux/mm.h>
 #include <linux/io.h>
 #include <linux/psp-sev.h>
+#include <uapi/asm/debugreg.h>
 #include <uapi/linux/sev-guest.h>
 
 #include <asm/init.h>

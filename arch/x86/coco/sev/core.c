@@ -24,6 +24,7 @@
 #include <linux/io.h>
 #include <linux/psp-sev.h>
 #include <linux/dmi.h>
+#include <uapi/asm/debugreg.h>
 #include <uapi/linux/sev-guest.h>
 #include <crypto/gcm.h>
 

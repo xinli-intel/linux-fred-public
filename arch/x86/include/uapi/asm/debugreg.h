@@ -28,6 +28,8 @@
 #define DR_STEP		(0x4000)	/* single-step */
 #define DR_SWITCH	(0x8000)	/* task switch */
 
+#define DR7_RESET_VALUE	(0x400)		/* Reset state of DR7 */
+
 /* Now define a bunch of things for manipulating the control register.
    The top two bytes of the control register consist of 4 fields of 4
    bits - each field corresponds to one of the four debug registers,
