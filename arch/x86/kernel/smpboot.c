@@ -232,13 +232,6 @@ static void ap_calibrate_delay(void)
 static void notrace __noendbr start_secondary(void *unused)
 {
 	/*
-	 * Don't put *anything* except direct CPU state initialization
-	 * before cpu_init(), SMP booting is too fragile that we want to
-	 * limit the things done here to the most necessary things.
-	 */
-	cr4_init();
-
-	/*
 	 * 32-bit specific. 64-bit reaches this code with the correct page
 	 * table established. Yet another historical divergence.
 	 */
@@ -248,7 +241,36 @@ static void notrace __noendbr start_secondary(void *unused)
 		__flush_tlb_all();
 	}
 
+	/*
+	 * AP startup assembly code has setup the following before calling
+	 * start_secondary() on 64-bit:
+	 *
+	 * 1) CS set to __KERNEL_CS.
+	 * 2) CR3 switched to the init_top_pgt.
+	 * 3) CR4.PAE, CR4.PSE and CR4.PGE are set.
+	 * 4) GDT set to per-CPU gdt_page.
+	 * 5) ALL data segments set to the NULL descriptor.
+	 * 6) MSR_GS_BASE set to per-CPU offset.
+	 * 7) IDT set to bringup IDT.
+	 * 8) CR0 set to CR0_STATE.
+	 *
+	 * So it's ready to setup exception handling.
+	 */
 	cpu_init_exception_handling(false);
+
+	/*
+	 * Ensure bits set in cr4_pinned_bits are set in CR4.
+	 *
+	 * cr4_pinned_bits is a subset of cr4_pinned_mask, which includes
+	 * the following bits:
+	 *         X86_CR4_SMEP
+	 *         X86_CR4_SMAP
+	 *         X86_CR4_UMIP
+	 *         X86_CR4_FSGSBASE
+	 *         X86_CR4_CET
+	 *         X86_CR4_FRED
+	 */
+	cr4_init();
 
 	/*
 	 * Load the microcode before reaching the AP alive synchronization
@@ -275,6 +297,11 @@ static void notrace __noendbr start_secondary(void *unused)
 	 */
 	cpuhp_ap_sync_alive();
 
+	/*
+	 * Don't put *anything* except direct CPU state initialization
+	 * before cpu_init(), SMP booting is too fragile that we want to
+	 * limit the things done here to the most necessary things.
+	 */
 	cpu_init();
 	fpu__init_cpu();
 	rcutree_report_cpu_starting(raw_smp_processor_id());
