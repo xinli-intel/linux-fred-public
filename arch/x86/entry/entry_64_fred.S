@@ -15,7 +15,7 @@
 	.section .noinstr.text, "ax"
 
 .macro FRED_ENTER
-	UNWIND_HINT_END_OF_STACK
+	UNWIND_HINT_IRET_REGS offset=8
 	ANNOTATE_NOENDBR
 	PUSH_AND_CLEAR_REGS
 	movq	%rsp, %rdi	/* %rdi -> pt_regs */
@@ -24,6 +24,7 @@
 .macro FRED_EXIT
 	UNWIND_HINT_REGS
 	POP_REGS
+	UNWIND_HINT_IRET_REGS offset=8
 .endm
 
 /*
@@ -110,6 +111,7 @@ SYM_FUNC_START(asm_fred_entry_from_kvm)
 	lea 1f(%rip), %rax
 	push %rax				/* Return RIP */
 	push $0					/* Error code, 0 for IRQ/NMI */
+	UNWIND_HINT_IRET_REGS offset=8
 
 	PUSH_AND_CLEAR_REGS clear_callee=0 unwind_hint=0
 
