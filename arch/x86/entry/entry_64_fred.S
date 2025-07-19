@@ -15,7 +15,7 @@
 	.section .noinstr.text, "ax"
 
 .macro FRED_ENTER
-	UNWIND_HINT_END_OF_STACK
+	UNWIND_HINT_IRET_REGS offset=8
 	ANNOTATE_NOENDBR
 	PUSH_AND_CLEAR_REGS
 	movq	%rsp, %rdi	/* %rdi -> pt_regs */
@@ -24,6 +24,7 @@
 .macro FRED_EXIT
 	UNWIND_HINT_REGS
 	POP_REGS
+	UNWIND_HINT_IRET_REGS offset=8
 .endm
 
 /*
