@@ -2024,53 +2024,70 @@ static int kvm_msr_user_space(struct kvm_vcpu *vcpu, u32 index,
 	return 1;
 }
 
-int kvm_emulate_rdmsr(struct kvm_vcpu *vcpu)
+static int kvm_emulate_get_msr(struct kvm_vcpu *vcpu, u32 msr, int reg)
 {
-	u32 ecx = kvm_rcx_read(vcpu);
 	u64 data;
 	int r;
 
-	r = kvm_get_msr_with_filter(vcpu, ecx, &data);
+	r = kvm_get_msr_with_filter(vcpu, msr, &data);
 
 	if (!r) {
-		trace_kvm_msr_read(ecx, data);
+		trace_kvm_msr_read(msr, data);
 
-		kvm_rax_write(vcpu, data & -1u);
-		kvm_rdx_write(vcpu, (data >> 32) & -1u);
+		if (reg == VCPU_EXREG_EDX_EAX) {
+			kvm_rax_write(vcpu, data & -1u);
+			kvm_rdx_write(vcpu, (data >> 32) & -1u);
+		} else {
+			kvm_register_write(vcpu, reg, data);
+		}
 	} else {
 		/* MSR read failed? See if we should ask user space */
-		if (kvm_msr_user_space(vcpu, ecx, KVM_EXIT_X86_RDMSR, 0,
+		if (kvm_msr_user_space(vcpu, msr, KVM_EXIT_X86_RDMSR, 0,
 				       complete_fast_rdmsr, r))
 			return 0;
-		trace_kvm_msr_read_ex(ecx);
+		trace_kvm_msr_read_ex(msr);
 	}
 
 	return kvm_x86_call(complete_emulated_msr)(vcpu, r);
 }
+
+int kvm_emulate_rdmsr(struct kvm_vcpu *vcpu)
+{
+	return kvm_emulate_get_msr(vcpu, kvm_rcx_read(vcpu), VCPU_EXREG_EDX_EAX);
+}
 EXPORT_SYMBOL_GPL(kvm_emulate_rdmsr);
 
-int kvm_emulate_wrmsr(struct kvm_vcpu *vcpu)
+static int kvm_emulate_set_msr(struct kvm_vcpu *vcpu, u32 msr, int reg)
 {
-	u32 ecx = kvm_rcx_read(vcpu);
-	u64 data = kvm_read_edx_eax(vcpu);
+	u64 data;
 	int r;
 
-	r = kvm_set_msr_with_filter(vcpu, ecx, data);
+	if (reg == VCPU_EXREG_EDX_EAX)
+		data = kvm_read_edx_eax(vcpu);
+	else
+		data = kvm_register_read(vcpu, reg);
+
+	r = kvm_set_msr_with_filter(vcpu, msr, data);
 
 	if (!r) {
-		trace_kvm_msr_write(ecx, data);
+		trace_kvm_msr_write(msr, data);
 	} else {
 		/* MSR write failed? See if we should ask user space */
-		if (kvm_msr_user_space(vcpu, ecx, KVM_EXIT_X86_WRMSR, data,
+		if (kvm_msr_user_space(vcpu, msr, KVM_EXIT_X86_WRMSR, data,
 				       complete_fast_msr_access, r))
 			return 0;
 		/* Signal all other negative errors to userspace */
 		if (r < 0)
 			return r;
-		trace_kvm_msr_write_ex(ecx, data);
+		trace_kvm_msr_write_ex(msr, data);
 	}
 
 	return kvm_x86_call(complete_emulated_msr)(vcpu, r);
+}
+
+int kvm_emulate_wrmsr(struct kvm_vcpu *vcpu)
+{
+	return kvm_emulate_set_msr(vcpu, kvm_rcx_read(vcpu), VCPU_EXREG_EDX_EAX);
 }
 EXPORT_SYMBOL_GPL(kvm_emulate_wrmsr);
 
@@ -2163,9 +2180,8 @@ static int handle_fastpath_set_tscdeadline(struct kvm_vcpu *vcpu, u64 data)
 	return 0;
 }
 
-fastpath_t handle_fastpath_set_msr_irqoff(struct kvm_vcpu *vcpu)
+static fastpath_t handle_set_msr_irqoff(struct kvm_vcpu *vcpu, u32 msr, int reg)
 {
-	u32 msr = kvm_rcx_read(vcpu);
 	u64 data;
 	fastpath_t ret;
 	bool handled;
@@ -2174,11 +2190,19 @@ fastpath_t handle_fastpath_set_msr_irqoff(struct kvm_vcpu *vcpu)
 
 	switch (msr) {
 	case APIC_BASE_MSR + (APIC_ICR >> 4):
-		data = kvm_read_edx_eax(vcpu);
+		if (reg == VCPU_EXREG_EDX_EAX)
+			data = kvm_read_edx_eax(vcpu);
+		else
+			data = kvm_register_read(vcpu, reg);
+
 		handled = !handle_fastpath_set_x2apic_icr_irqoff(vcpu, data);
 		break;
 	case MSR_IA32_TSC_DEADLINE:
-		data = kvm_read_edx_eax(vcpu);
+		if (reg == VCPU_EXREG_EDX_EAX)
+			data = kvm_read_edx_eax(vcpu);
+		else
+			data = kvm_register_read(vcpu, reg);
+
 		handled = !handle_fastpath_set_tscdeadline(vcpu, data);
 		break;
 	default:
@@ -2199,6 +2223,11 @@ fastpath_t handle_fastpath_set_msr_irqoff(struct kvm_vcpu *vcpu)
 	kvm_vcpu_srcu_read_unlock(vcpu);
 
 	return ret;
+}
+
+fastpath_t handle_fastpath_set_msr_irqoff(struct kvm_vcpu *vcpu)
+{
+	return handle_set_msr_irqoff(vcpu, kvm_rcx_read(vcpu), VCPU_EXREG_EDX_EAX);
 }
 EXPORT_SYMBOL_GPL(handle_fastpath_set_msr_irqoff);
 
