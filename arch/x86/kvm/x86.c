@@ -2254,6 +2254,31 @@ static int do_set_msr(struct kvm_vcpu *vcpu, unsigned index, u64 *data)
 	return kvm_set_msr_ignored_check(vcpu, index, *data, true);
 }
 
+static int kvm_get_one_msr(struct kvm_vcpu *vcpu, u32 msr, u64 __user *value)
+{
+	u64 val;
+	int r;
+
+	r = do_get_msr(vcpu, msr, &val);
+	if (r)
+		return r;
+
+	if (put_user(val, value))
+		return -EFAULT;
+
+	return 0;
+}
+
+static int kvm_set_one_msr(struct kvm_vcpu *vcpu, u32 msr, u64 __user *value)
+{
+	u64 val;
+
+	if (get_user(val, value))
+		return -EFAULT;
+
+	return do_set_msr(vcpu, msr, &val);
+}
+
 #ifdef CONFIG_X86_64
 struct pvclock_clock {
 	int vclock_mode;
@@ -4737,6 +4762,7 @@ int kvm_vm_ioctl_check_extension(struct kvm *kvm, long ext)
 	case KVM_CAP_IRQFD_RESAMPLE:
 	case KVM_CAP_MEMORY_FAULT_INFO:
 	case KVM_CAP_X86_GUEST_MODE:
+	case KVM_CAP_ONE_REG:
 		r = 1;
 		break;
 	case KVM_CAP_PRE_FAULT_MEMORY:
@@ -5915,6 +5941,20 @@ static int kvm_vcpu_ioctl_enable_cap(struct kvm_vcpu *vcpu,
 	}
 }
 
+struct kvm_x86_reg_id {
+	__u32 index;
+	__u8  type;
+	__u8  rsvd;
+	__u8  rsvd4:4;
+	__u8  size:4;
+	__u8  x86;
+};
+
+static int kvm_translate_synthetic_msr(struct kvm_x86_reg_id *reg)
+{
+	return -EINVAL;
+}
+
 long kvm_arch_vcpu_ioctl(struct file *filp,
 			 unsigned int ioctl, unsigned long arg)
 {
@@ -6029,6 +6069,48 @@ long kvm_arch_vcpu_ioctl(struct file *filp,
 		int idx = srcu_read_lock(&vcpu->kvm->srcu);
 		r = msr_io(vcpu, argp, do_set_msr, 0);
 		srcu_read_unlock(&vcpu->kvm->srcu, idx);
+		break;
+	}
+	case KVM_GET_ONE_REG:
+	case KVM_SET_ONE_REG: {
+		struct kvm_x86_reg_id *id;
+		struct kvm_one_reg reg;
+		u64 __user *value;
+
+		r = -EFAULT;
+		if (copy_from_user(&reg, argp, sizeof(reg)))
+			break;
+
+		r = -EINVAL;
+		if ((reg.id & KVM_REG_ARCH_MASK) != KVM_REG_X86)
+			break;
+
+		id = (struct kvm_x86_reg_id *)&reg.id;
+		if (id->rsvd || id->rsvd4)
+			break;
+
+		if (id->type != KVM_X86_REG_TYPE_MSR &&
+		    id->type != KVM_X86_REG_TYPE_SYNTHETIC_MSR)
+			break;
+
+		if ((reg.id & KVM_REG_SIZE_MASK) != KVM_REG_SIZE_U64)
+			break;
+
+		if (id->type == KVM_X86_REG_TYPE_SYNTHETIC_MSR) {
+			r = kvm_translate_synthetic_msr(id);
+			if (r)
+				break;
+		}
+
+		r = -EINVAL;
+		if (id->type != KVM_X86_REG_TYPE_MSR)
+			break;
+
+		value = u64_to_user_ptr(reg.addr);
+		if (ioctl == KVM_GET_ONE_REG)
+			r = kvm_get_one_msr(vcpu, id->index, value);
+		else
+			r = kvm_set_one_msr(vcpu, id->index, value);
 		break;
 	}
 	case KVM_TPR_ACCESS_REPORTING: {
