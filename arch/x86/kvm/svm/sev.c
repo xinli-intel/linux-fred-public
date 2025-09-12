@@ -3354,6 +3354,9 @@ static void sev_es_sync_from_ghcb(struct vcpu_svm *svm)
 	if (kvm_ghcb_xcr0_is_valid(svm))
 		__kvm_set_xcr(vcpu, 0, kvm_ghcb_get_xcr0(ghcb));
 
+	if (kvm_ghcb_xss_is_valid(svm))
+		__kvm_emulate_msr_write(vcpu, MSR_IA32_XSS, kvm_ghcb_get_xss(ghcb));
+
 	/* Copy the GHCB exit information into the VMCB fields */
 	exit_code = kvm_ghcb_get_sw_exit_code(ghcb);
 	control->exit_code = lower_32_bits(exit_code);
