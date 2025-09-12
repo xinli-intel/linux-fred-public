@@ -11,6 +11,7 @@
 
 struct kvm_msr {
 	const struct kvm_x86_cpu_feature feature;
+	const struct kvm_x86_cpu_feature feature2;
 	const char *name;
 	const u64 reset_val;
 	const u64 write_val;
@@ -18,7 +19,7 @@ struct kvm_msr {
 	const u32 index;
 };
 
-#define __MSR_TEST(msr, str, val, rsvd, reset, feat)			\
+#define ____MSR_TEST(msr, str, val, rsvd, reset, feat, f2)		\
 {									\
 	.index = msr,							\
 	.name = str,							\
@@ -26,13 +27,20 @@ struct kvm_msr {
 	.rsvd_val = rsvd,						\
 	.reset_val = reset,						\
 	.feature = X86_FEATURE_ ##feat,					\
+	.feature2 = X86_FEATURE_ ##f2,					\
 }
+
+#define __MSR_TEST(msr, str, val, rsvd, reset, feat)			\
+	____MSR_TEST(msr, str, val, rsvd, reset, feat, feat)
 
 #define MSR_TEST_NON_ZERO(msr, val, rsvd, reset, feat)			\
 	__MSR_TEST(msr, #msr, val, rsvd, reset, feat)
 
 #define MSR_TEST(msr, val, rsvd, feat)					\
 	__MSR_TEST(msr, #msr, val, rsvd, 0, feat)
+
+#define MSR_TEST2(msr, val, rsvd, feat, f2)				\
+	____MSR_TEST(msr, #msr, val, rsvd, 0, feat, f2)
 
 /*
  * Note, use a page aligned value for the canonical value so that the value
@@ -98,10 +106,18 @@ static void guest_test_unsupported_msr(const struct kvm_msr *msr)
 	u64 val;
 	u8 vec;
 
+	/*
+	 * Skip the RDMSR #GP test if the secondary feature is supported, as
+	 * only the to-be-written value depends on the primary feature.
+	 */
+	if (this_cpu_has(msr->feature2))
+		goto skip_rdmsr_gp;
+
 	vec = rdmsr_safe(msr->index, &val);
 	__GUEST_ASSERT(vec == GP_VECTOR, "Wanted #GP on RDMSR(0x%x), got %s",
 		       msr->index, ex_str(vec));
 
+skip_rdmsr_gp:
 	vec = wrmsr_safe(msr->index, msr->write_val);
 	__GUEST_ASSERT(vec == GP_VECTOR, "Wanted #GP on WRMSR(0x%x, 0x%lx), got %s",
 		       msr->index, msr->write_val, ex_str(vec));
@@ -224,6 +240,10 @@ static void test_msrs(void)
 		MSR_TEST_CANONICAL(MSR_CSTAR, LM),
 		MSR_TEST(MSR_SYSCALL_MASK, 0xffffffff, 0, LM),
 
+		MSR_TEST2(MSR_IA32_S_CET, CET_SHSTK_EN, CET_RESERVED, SHSTK, IBT),
+		MSR_TEST2(MSR_IA32_S_CET, CET_ENDBR_EN, CET_RESERVED, IBT, SHSTK),
+		MSR_TEST2(MSR_IA32_U_CET, CET_SHSTK_EN, CET_RESERVED, SHSTK, IBT),
+		MSR_TEST2(MSR_IA32_U_CET, CET_ENDBR_EN, CET_RESERVED, IBT, SHSTK),
 		MSR_TEST_CANONICAL(MSR_IA32_PL0_SSP, SHSTK),
 		MSR_TEST(MSR_IA32_PL0_SSP, canonical_val, canonical_val | 1, SHSTK),
 		MSR_TEST_CANONICAL(MSR_IA32_PL1_SSP, SHSTK),
