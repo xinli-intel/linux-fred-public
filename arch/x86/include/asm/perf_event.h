@@ -659,12 +659,9 @@ static inline void x86_perf_get_lbr(struct x86_pmu_lbr *lbr)
 #endif
 
 #ifdef CONFIG_CPU_SUP_INTEL
- extern void intel_pt_handle_vmx(int on);
+extern void intel_pt_set_vmx(int on);
 #else
-static inline void intel_pt_handle_vmx(int on)
-{
-
-}
+static inline void intel_pt_set_vmx(int on) { }
 #endif
 
 #if defined(CONFIG_PERF_EVENTS) && defined(CONFIG_CPU_SUP_AMD)

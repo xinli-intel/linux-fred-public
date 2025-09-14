@@ -225,17 +225,6 @@ static int __init pt_pmu_hw_init(void)
 		break;
 	}
 
-	if (boot_cpu_has(X86_FEATURE_VMX)) {
-		/*
-		 * Intel SDM, 36.5 "Tracing post-VMXON" says that
-		 * "IA32_VMX_MISC[bit 14]" being 1 means PT can trace
-		 * post-VMXON.
-		 */
-		rdmsrq(MSR_IA32_VMX_MISC, reg);
-		if (reg & BIT(14))
-			pt_pmu.vmx = true;
-	}
-
 	for (i = 0; i < PT_CPUID_LEAVES; i++) {
 		cpuid_count(20, i,
 			    &pt_pmu.caps[CPUID_EAX + i*PT_CPUID_REGS_NUM],
@@ -1556,41 +1545,39 @@ void intel_pt_interrupt(void)
 	}
 }
 
-void intel_pt_handle_vmx(int on)
+/*
+ * VMXON is done in the CPU startup phase, thus pt is initialized later.
+ *
+ * Signal pt to not write IA32_RTIT_CTL while in VMX operation if the
+ * processor supports Intel PT but does not allow it to be used in VMX
+ * operation, i.e. IA32_VMX_MISC[bit 14] is cleared.
+ *
+ * Note: If IA32_VMX_MISC[bit 14] is set, vmx_on in pt_ctx remains 0.
+ */
+void intel_pt_set_vmx(int on)
 {
 	struct pt *pt = this_cpu_ptr(&pt_ctx);
-	struct perf_event *event;
-	unsigned long flags;
+	int cpu = raw_smp_processor_id();
+
+	if (!cpu && cpu_feature_enabled(X86_FEATURE_VMX)) {
+		u64 misc;
+
+		/*
+		 * Intel SDM, 36.5 "Tracing post-VMXON" says that
+		 * "IA32_VMX_MISC[bit 14]" being 1 means PT can trace
+		 * post-VMXON.
+		 */
+		rdmsrq(MSR_IA32_VMX_MISC, misc);
+		if (misc & BIT(14))
+			pt_pmu.vmx = true;
+	}
 
 	/* PT plays nice with VMX, do nothing */
 	if (pt_pmu.vmx)
 		return;
 
-	/*
-	 * VMXON will clear RTIT_CTL.TraceEn; we need to make
-	 * sure to not try to set it while VMX is on. Disable
-	 * interrupts to avoid racing with pmu callbacks;
-	 * concurrent PMI should be handled fine.
-	 */
-	local_irq_save(flags);
 	WRITE_ONCE(pt->vmx_on, on);
-
-	/*
-	 * If an AUX transaction is in progress, it will contain
-	 * gap(s), so flag it PARTIAL to inform the user.
-	 */
-	event = pt->handle.event;
-	if (event)
-		perf_aux_output_flag(&pt->handle,
-		                     PERF_AUX_FLAG_PARTIAL);
-
-	/* Turn PTs back on */
-	if (!on && event)
-		wrmsrq(MSR_IA32_RTIT_CTL, event->hw.aux_config);
-
-	local_irq_restore(flags);
 }
-EXPORT_SYMBOL_GPL(intel_pt_handle_vmx);
 
 /*
  * PMU callbacks
