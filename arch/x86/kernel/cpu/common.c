@@ -1997,14 +1997,11 @@ EXPORT_SYMBOL_GPL(get_loaded_vmcss_on_cpu);
  * against any unexpected code paths that might trigger it and can be removed
  * later if unnecessary.
  */
-void cpu_enable_virtualization(void)
+static void enable_vmx(void)
 {
 	u64 vmxon_pointer = __pa(this_cpu_ptr(&vmxon_vmcs));
 	int cpu = raw_smp_processor_id();
 	u64 basic_msr;
-
-	if (!is_vmx_supported())
-		return;
 
 	if (cr4_read_shadow() & X86_CR4_VMXE) {
 		pr_err("VMX already enabled on CPU%d\n", cpu);
@@ -2063,13 +2060,10 @@ struct loaded_vmcs_basic {
  * precaution against any unexpected code paths that might trigger it and
  * can be removed later if unnecessary.
  */
-void cpu_disable_virtualization(void)
+static void disable_vmx(void)
 {
 	int cpu = raw_smp_processor_id();
 	struct loaded_vmcs_basic *v;
-
-	if (!is_vmx_supported())
-		return;
 
 	if (!(cr4_read_shadow() & X86_CR4_VMXE)) {
 		pr_err("VMX not enabled or already disabled on CPU%d\n", cpu);
@@ -2095,6 +2089,82 @@ exit:
 fault:
 	pr_err("VMXOFF faulted on CPU%d\n", cpu);
 	goto exit;
+}
+
+bool is_svm_supported(void)
+{
+	int cpu = raw_smp_processor_id();
+	struct cpuinfo_x86 *c = &cpu_data(cpu);
+
+	if (c->x86_vendor != X86_VENDOR_AMD &&
+	    c->x86_vendor != X86_VENDOR_HYGON) {
+		pr_info("CPU %d isn't AMD or Hygon\n", cpu);
+		return false;
+	}
+
+	if (!cpu_has(c, X86_FEATURE_SVM)) {
+		pr_info("SVM not supported by CPU %d\n", cpu);
+		return false;
+	}
+
+	if (cc_platform_has(CC_ATTR_GUEST_MEM_ENCRYPT)) {
+		pr_info("KVM is unsupported when running as an SEV guest\n");
+		return false;
+	}
+
+	return true;
+}
+EXPORT_SYMBOL_GPL(is_svm_supported);
+
+static void enable_svm(void)
+{
+	int cpu = raw_smp_processor_id();
+	u64 efer;
+
+	rdmsrq(MSR_EFER, efer);
+        if (efer & EFER_SVME) {
+		pr_err("SVM already enabled on CPU%d\n", cpu);
+		return;
+	}
+
+	wrmsrq(MSR_EFER, efer | EFER_SVME);
+}
+
+static void disable_svm(void)
+{
+	int cpu = raw_smp_processor_id();
+	u64 efer;
+
+	rdmsrq(MSR_EFER, efer);
+	if (!(efer & EFER_SVME)) {
+		pr_err("SVM already disabled on CPU%d\n", cpu);
+		return;
+	}
+
+	/*
+	 * Force GIF=1 prior to disabling SVM, e.g. to ensure INIT and
+	 * NMI aren't blocked.
+	 */
+	asm volatile("stgi");
+	wrmsrq(MSR_EFER, efer & ~EFER_SVME);
+}
+
+void cpu_enable_virtualization(void)
+{
+	if (is_vmx_supported())
+		return enable_vmx();
+
+	if (is_svm_supported())
+		return enable_svm();
+}
+
+void cpu_disable_virtualization(void)
+{
+	if (is_vmx_supported())
+		return disable_vmx();
+
+	if (is_svm_supported())
+		return disable_svm();
 }
 
 /*

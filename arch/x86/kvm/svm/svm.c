@@ -424,44 +424,9 @@ static void svm_init_osvw(struct kvm_vcpu *vcpu)
 		vcpu->arch.osvw.status |= 1;
 }
 
-static bool __kvm_is_svm_supported(void)
-{
-	int cpu = smp_processor_id();
-	struct cpuinfo_x86 *c = &cpu_data(cpu);
-
-	if (c->x86_vendor != X86_VENDOR_AMD &&
-	    c->x86_vendor != X86_VENDOR_HYGON) {
-		pr_err("CPU %d isn't AMD or Hygon\n", cpu);
-		return false;
-	}
-
-	if (!cpu_has(c, X86_FEATURE_SVM)) {
-		pr_err("SVM not supported by CPU %d\n", cpu);
-		return false;
-	}
-
-	if (cc_platform_has(CC_ATTR_GUEST_MEM_ENCRYPT)) {
-		pr_info("KVM is unsupported when running as an SEV guest\n");
-		return false;
-	}
-
-	return true;
-}
-
-static bool kvm_is_svm_supported(void)
-{
-	bool supported;
-
-	migrate_disable();
-	supported = __kvm_is_svm_supported();
-	migrate_enable();
-
-	return supported;
-}
-
 static int svm_check_processor_compat(void)
 {
-	if (!__kvm_is_svm_supported())
+	if (!is_svm_supported())
 		return -EIO;
 
 	return 0;
@@ -481,27 +446,9 @@ static __always_inline struct sev_es_save_area *sev_es_host_save_area(struct svm
 	return &sd->save_area->host_sev_es_save;
 }
 
-static inline void kvm_cpu_svm_disable(void)
-{
-	uint64_t efer;
-
-	wrmsrq(MSR_VM_HSAVE_PA, 0);
-	rdmsrq(MSR_EFER, efer);
-	if (efer & EFER_SVME) {
-		/*
-		 * Force GIF=1 prior to disabling SVM, e.g. to ensure INIT and
-		 * NMI aren't blocked.
-		 */
-		stgi();
-		wrmsrq(MSR_EFER, efer & ~EFER_SVME);
-	}
-}
-
 static void svm_emergency_disable_virtualization_cpu(void)
 {
 	kvm_rebooting = true;
-
-	kvm_cpu_svm_disable();
 }
 
 static void svm_disable_virtualization_cpu(void)
@@ -510,29 +457,28 @@ static void svm_disable_virtualization_cpu(void)
 	if (tsc_scaling)
 		__svm_write_tsc_multiplier(SVM_TSC_RATIO_DEFAULT);
 
-	kvm_cpu_svm_disable();
+	wrmsrq(MSR_VM_HSAVE_PA, 0);
 
 	amd_pmu_disable_virt();
 }
 
 static int svm_enable_virtualization_cpu(void)
 {
-
 	struct svm_cpu_data *sd;
-	uint64_t efer;
+	u64 efer;
 	int me = raw_smp_processor_id();
 
 	rdmsrq(MSR_EFER, efer);
-	if (efer & EFER_SVME)
-		return -EBUSY;
+	if (!(efer & EFER_SVME)) {
+		pr_err("SVM not enabled by CPU %d\n", me);
+		return -EOPNOTSUPP;
+	}
 
 	sd = per_cpu_ptr(&svm_data, me);
 	sd->asid_generation = 1;
 	sd->max_asid = cpuid_ebx(SVM_CPUID_FUNC) - 1;
 	sd->next_asid = sd->max_asid + 1;
 	sd->min_asid = max_sev_asid + 1;
-
-	wrmsrq(MSR_EFER, efer | EFER_SVME);
 
 	wrmsrq(MSR_VM_HSAVE_PA, sd->save_area_pa);
 
@@ -5493,13 +5439,17 @@ static void __svm_exit(void)
 static int __init svm_init(void)
 {
 	int r;
+	u64 efer;
 
 	KVM_SANITY_CHECK_VM_STRUCT_SIZE(kvm_svm);
 
 	__unused_size_checks();
 
-	if (!kvm_is_svm_supported())
+	rdmsrq(MSR_EFER, efer);
+	if (!(efer & EFER_SVME)) {
+		pr_err("SVM not enabled by CPU %d\n", raw_smp_processor_id());
 		return -EOPNOTSUPP;
+	}
 
 	r = kvm_x86_vendor_init(&svm_init_ops);
 	if (r)
