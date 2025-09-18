@@ -83,7 +83,7 @@ static __always_inline bool do_syscall_x32(struct pt_regs *regs, int nr)
 	return false;
 }
 
-/* Returns true to return using SYSRET, or false to use IRET */
+/* Returns true to return using SYSRET, or false to use IRET/ERETU */
 __visible noinstr bool do_syscall_64(struct pt_regs *regs, int nr)
 {
 	nr = syscall_enter_from_user_mode(regs, nr);
@@ -98,6 +98,10 @@ __visible noinstr bool do_syscall_64(struct pt_regs *regs, int nr)
 
 	instrumentation_end();
 	syscall_exit_to_user_mode(regs);
+
+	/* No test for FRED, which returns to user level with ERETU only */
+	if (cpu_feature_enabled(X86_FEATURE_FRED))
+		return false;
 
 	/*
 	 * Check that the register state is valid for using SYSRET to exit

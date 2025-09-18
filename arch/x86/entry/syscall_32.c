@@ -311,7 +311,7 @@ static noinstr bool __do_fast_syscall_32(struct pt_regs *regs)
 	return true;
 }
 
-/* Returns true to return using SYSEXIT/SYSRETL, or false to use IRET */
+/* Returns true to return using SYSEXIT/SYSRETL, or false to use IRET/ERETU */
 __visible noinstr bool do_fast_syscall_32(struct pt_regs *regs)
 {
 	/*
@@ -330,6 +330,10 @@ __visible noinstr bool do_fast_syscall_32(struct pt_regs *regs)
 
 	/* Invoke the syscall. If it failed, keep it simple: use IRET. */
 	if (!__do_fast_syscall_32(regs))
+		return false;
+
+	/* No test for FRED, which returns to user level with ERETU only */
+	if (cpu_feature_enabled(X86_FEATURE_FRED))
 		return false;
 
 	/*
