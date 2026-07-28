@@ -93,40 +93,6 @@ void fred_entry_from_kernel(struct fred_stack *stack)
 	stack->ssx &= ~FRED_SSX_NMI;
 }
 
-#define PUSH_REGS	\
-	"push %rdi\n"	\
-	"push %rsi\n"	\
-	"push %rdx\n"	\
-	"push %rcx\n"	\
-	"push %rax\n"	\
-	"push %r8\n"	\
-	"push %r9\n"	\
-	"push %r10\n"	\
-	"push %r11\n"	\
-	"push %rbx\n"	\
-	"push %rbp\n"	\
-	"push %r12\n"	\
-	"push %r13\n"	\
-	"push %r14\n"	\
-	"push %r15\n"
-
-#define POP_REGS	\
-	"pop %r15\n"	\
-	"pop %r14\n"	\
-	"pop %r13\n"	\
-	"pop %r12\n"	\
-	"pop %rbp\n"	\
-	"pop %rbx\n"	\
-	"pop %r11\n"	\
-	"pop %r10\n"	\
-	"pop %r9\n"	\
-	"pop %r8\n"	\
-	"pop %rax\n"	\
-	"pop %rcx\n"	\
-	"pop %rdx\n"	\
-	"pop %rsi\n"	\
-	"pop %rdi\n"
-
 /*
  * FRED entry points.
  */
